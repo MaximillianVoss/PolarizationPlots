@@ -1,3 +1,7 @@
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::InputEncoding = [System.Text.Encoding]::UTF8
+
+
 <#
 .SYNOPSIS
   ѕереписывает историю git-репозитори€, замен€€ автора и коммитера на новые им€/почту.
