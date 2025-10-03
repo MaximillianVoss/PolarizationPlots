@@ -1,29 +1,89 @@
+import math
+from collections import OrderedDict
+from typing import Dict, Optional, Tuple
+
 import numpy as np
 
-def transition_matrix(L: int):
+
+Matrix2x2 = np.ndarray
+
+
+def _safe_sqrt(value: float) -> float:
+    """Извлечение корня с отсечкой отрицательных значений от ошибок округления."""
+    if value < 0:
+        if value >= -1e-12:
+            return 0.0
+        raise ValueError(f"Невозможно извлечь корень из отрицательного значения {value}")
+    return math.sqrt(value)
+
+
+def transition_matrices(L_source: int, L_target: Optional[int] = None
+                        ) -> Tuple[Dict[int, Matrix2x2], Dict[int, Optional[Matrix2x2]]]:
     """
-    Формируем матрицу переходов D(L) для орбитального числа L.
-    Элементы считаются по формулам Клебша-Гордана для соседних Lz.
+    Формирует набор 2x2 матриц переходов для фиксированного орбитального числа L_source.
+
+    Параметры
+    ---------
+    L_source : int
+        Орбитальное число исходного уровня (обозначено как L_s в методичке).
+    L_target : int | None, optional
+        Орбитальное число второго уровня. Если не указано, используется L_source,
+        что соответствует запросу заказчика для проверки алгоритма.
+
+    Результат
+    ---------
+    matrices : dict[int, np.ndarray]
+        Словарь {L_n: D}, где D — матрица переходов для заданного магнитного
+        числа L_n (L_z). Значения L_n пробегают диапазон [-L_target, L_target].
+    inverses : dict[int, np.ndarray | None]
+        Словарь обратных матриц. Если матрица вырождена, значение — None.
     """
-    size = 2 * L + 1
-    D = np.zeros((size, size))
-    Lz_values = np.arange(-L, L+1)
 
-    for i, m in enumerate(Lz_values):  # строка
-        for j, n in enumerate(Lz_values):  # столбец
-            if n == m + 1:  # переход Lz -> Lz+1
-                D[i, j] = np.sqrt((L - m) * (L + m + 1)) / (2 * L + 1)
-            elif n == m - 1:  # переход Lz -> Lz-1
-                D[i, j] = np.sqrt((L + m) * (L - m + 1)) / (2 * L + 1)
-            elif n == m:  # диагональные элементы (сохранение Lz)
-                D[i, j] = m / (L + 0.5)  # примерная форма, корректируется под вашу формулу
+    if L_source < 0:
+        raise ValueError("L_source должен быть неотрицательным")
 
-    # Проверка на обратимость
-    det = np.linalg.det(D)
-    if abs(det) < 1e-12:
-        print("⚠️ Внимание: матрица D(L) вырожденная, обратная не существует.")
-        D_inv = None
-    else:
-        D_inv = np.linalg.inv(D)
+    if L_target is None:
+        L_target = L_source
 
-    return D, D_inv
+    if L_target < 0:
+        raise ValueError("L_target должен быть неотрицательным")
+
+    denom = 2 * L_source + 1
+    if denom == 0:
+        raise ValueError("Недопустимое значение L_source = -0.5")
+
+    matrices: Dict[int, Matrix2x2] = OrderedDict()
+    inverses: Dict[int, Optional[Matrix2x2]] = OrderedDict()
+
+    for L_n in range(-L_target, L_target + 1):
+        num_top_left = L_source + L_n + 1
+        num_top_right = L_source - L_n + 1
+        num_bottom_left = L_source - L_n
+        num_bottom_right = L_source + L_n
+
+        D = np.array(
+            [
+                [_safe_sqrt(num_top_left / denom), - _safe_sqrt(num_top_right / denom)],
+                [_safe_sqrt(num_bottom_left / denom), _safe_sqrt(num_bottom_right / denom)],
+            ],
+            dtype=float,
+        )
+
+        matrices[L_n] = D
+
+        det = np.linalg.det(D)
+        if abs(det) < 1e-12:
+            inverses[L_n] = None
+        else:
+            inverses[L_n] = np.linalg.inv(D)
+
+    return matrices, inverses
+
+
+# Обратная совместимость со старым API
+def transition_matrix(L: int):  # pragma: no cover - удобный шорткат для GUI
+    """Оставлено для совместимости: возвращает первый набор матриц."""
+    matrices, inverses = transition_matrices(L)
+    # Старый код ожидал одну матрицу, поэтому возвращаем первую по L_n
+    first_key = next(iter(matrices))
+    return matrices[first_key], inverses[first_key]
