@@ -55,3 +55,47 @@ def nearest_atoms(a, interaction_radius, alpha, beta, n=3):
 
     results.sort(key=lambda item: item["longitudinal_distance"])
     return results
+
+
+# lattice.py
+import math
+
+def compute_lattice_n_auto(a_ang: float, R_bohr: float,
+                           alpha: float, beta: float,
+                           d_layer: int,
+                           margin_bohr: float = 5.0,
+                           max_atoms: int = 100_000) -> int:
+    """
+    Возвращает минимальный n для куба [-n..n]^3, который накрывает
+    путь электрона от (0,0,0) до плоскости z = d*a + 5*R_bohr,
+    с запасом ±5*R_bohr по X и Y. Ограничивает (2n+1)^3 <= max_atoms.
+    """
+    vx = math.sin(alpha) * math.cos(beta)
+    vy = math.sin(alpha) * math.sin(beta)
+    vz = math.cos(alpha) if abs(math.cos(alpha)) > 1e-8 else 1e-8  # избегаем деления на 0
+
+    z_end = d_layer * a_ang + margin_bohr * R_bohr
+    t_end = z_end / vz
+    x_end = abs(t_end * vx)
+    y_end = abs(t_end * vy)
+
+    Lx = x_end + margin_bohr * R_bohr
+    Ly = y_end + margin_bohr * R_bohr
+    Lz = z_end
+
+    nx = math.ceil(Lx / a_ang)
+    ny = math.ceil(Ly / a_ang)
+    nz = math.ceil(Lz / a_ang)
+    n  = max(nx, ny, nz)
+
+    def nodes(nn: int) -> int:
+        side = 2*nn + 1
+        return side*side*side
+
+    # держим в лимите по количеству узлов
+    while nodes(n) > max_atoms and n > nz:
+        n -= 1
+    while nodes(n) > max_atoms and n > 1:
+        n -= 1
+    return max(1, int(n))
+
