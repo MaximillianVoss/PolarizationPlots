@@ -1,4 +1,6 @@
 import numpy as np
+import logging
+logger = logging.getLogger(__name__)
 
 
 def generate_lattice(a, n=3):
@@ -26,6 +28,11 @@ def distance_point_to_line(point, line_point, line_dir):
 
 def nearest_atoms(a, interaction_radius, alpha, beta, n=3):
     """Возвращает атомы в пределах interaction_radius от прямой движения."""
+    logger.info(
+        "lattice.nearest_atoms | a=%.4f, R_int=%.4f, alpha=%.4f, beta=%.4f, n=%d",
+        a, interaction_radius, alpha, beta, n
+    )
+
     origin = np.zeros(3)
     dir_vec = spherical_to_cartesian(alpha, beta)
     dir_norm = dir_vec / np.linalg.norm(dir_vec)
@@ -54,6 +61,12 @@ def nearest_atoms(a, interaction_radius, alpha, beta, n=3):
             )
 
     results.sort(key=lambda item: item["longitudinal_distance"])
+
+    logger.info(
+        "lattice.nearest_atoms | всего узлов=%d, отобрано=%d",
+        len(atoms), len(results)
+    )
+
     return results
 
 

@@ -1,8 +1,13 @@
 # polarization_part2.py
 # -*- coding: utf-8 -*-
+import os
+from datetime import datetime
 from typing import Callable, Dict, Tuple, Literal
 import numpy as np
 import pandas as pd
+import logging
+logger = logging.getLogger(__name__)
+
 
 # -------------------- Физические константы --------------------
 E_CHARGE = 1.602176634e-19  # Кл
@@ -71,6 +76,9 @@ def compute_I_components(
       - "trapz"   : обычное интегрирование разности χ(r+dr)-χ(r) по r-сетке (trapz);
       - "sum_avg" : «интеграл суммой» из примечания — идём r=a..r_max шагом dr, суммируем выражение и усредняем.
     """
+
+
+
     if r_max_ang <= a_ang:
         raise ValueError("r_max_ang должен быть больше a_ang.")
 
@@ -115,6 +123,11 @@ def compute_I_components(
     I2 = (-(6.0 * c1 * Z) / V) * pref * I2_int
     I3 = ((6.0 * c1 * Z * b) / (V * (Z ** (1.0/3.0)))) * pref * I3_int
 
+    logger.debug(
+        "I_components | V=%.3e, Z=%.3g, a=%.3g, b=%.3g, dr=%.3g, rmax=%.3g",
+        V, Z, a_ang, b_ang, dr_ang, r_max_ang
+    )
+
     return I1, I2, I3, (I1 + I2 + I3)
 
 def compute_grid(
@@ -134,6 +147,7 @@ def compute_grid(
     i3_mode: Literal["trapz", "sum_avg"] = "sum_avg",
 ) -> pd.DataFrame:
     """Считает сетку по энергии и возвращает таблицу со столбцами E, V, I1, I2, I3 и Phi = I_total."""
+
     if Emin_eV <= 0 or Emax_eV <= 0 or Emax_eV <= Emin_eV:
         raise ValueError("Требуется 0 < Emin < Emax.")
     E = np.logspace(np.log10(Emin_eV), np.log10(Emax_eV), int(N))
@@ -149,14 +163,66 @@ def compute_grid(
         )
         I1.append(i1); I2.append(i2); I3.append(i3); It.append(it)
 
+    logger.info(
+        "compute_grid | Emin=%.3g eV, Emax=%.3g eV, N=%d, i3_mode=%s",
+        Emin_eV, Emax_eV, N, i3_mode
+    )
+
+    # ===== Вариант A: логирование сводки по Phi + несколько контрольных точек =====
+    phi = np.asarray(It, dtype=float)
+
+    logger.info(
+        "compute_grid | Phi stats: min=%.6g, max=%.6g, mean=%.6g",
+        float(phi.min()), float(phi.max()), float(phi.mean())
+    )
+
+    if len(phi) > 0:
+        idx0 = 0
+        idxm = len(phi) // 2
+        idxe = len(phi) - 1
+        logger.info(
+            "compute_grid | Phi samples: "
+            "E0=%.6g Phi0=%.6g | Emid=%.6g Phimid=%.6g | Eend=%.6g Phiend=%.6g",
+            float(E[idx0]), float(phi[idx0]),
+            float(E[idxm]), float(phi[idxm]),
+            float(E[idxe]), float(phi[idxe]),
+        )
+    # ============================================================================
+
+    # ===== Сохранение массива Phi (и I1/I2/I3) в CSV =====
+    try:
+        os.makedirs("data", exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        csv_path = os.path.join("data", f"phi_dump_{ts}.csv")
+
+        df_dump = pd.DataFrame({
+            "E_eV": E,
+            "V_m_per_s": V,
+            "I1": np.asarray(I1, dtype=float),
+            "I2": np.asarray(I2, dtype=float),
+            "I3": np.asarray(I3, dtype=float),
+            "Phi": phi,
+        })
+        df_dump.to_csv(csv_path, index=False, encoding="utf-8")
+
+        logger.info(
+            "compute_grid | Phi saved to CSV: %s (%d rows)",
+            os.path.abspath(csv_path),
+            len(df_dump)
+        )
+    except Exception:
+        logger.exception("compute_grid | failed to save Phi CSV")
+    # ======================================================
+
     return pd.DataFrame({
         "E_eV": E,
         "V_m_per_s": V,
         "I1": np.array(I1),
         "I2": np.array(I2),
         "I3": np.array(I3),
-        "Phi": np.array(It),   # суммарная матричная часть
+        "Phi": phi,   # суммарная матричная часть
     })
+
 
 # -------------------- Амплитуды/вероятности для двух подготовок спина --------------------
 def spin_amplitudes_both(

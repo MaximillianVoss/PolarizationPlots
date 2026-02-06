@@ -1,0 +1,219 @@
+2026-02-06 20:07:56,047 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:07:56,047 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:07:56,049 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:07:56,049 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:07:56,055 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:07:56,055 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:07:56,056 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:07:56,058 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:07:56,058 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 251, in update_output_right
+    df = compute_grid(...)
+         ^^^^^^^^^^^^^^^^^
+TypeError: compute_grid() missing 2 required positional arguments: 'Emax_eV' and 'N'
+2026-02-06 20:08:25,508 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:08:25,508 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:08:25,510 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:08:25,510 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:08:25,510 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:08:25,510 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:08:25,510 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:08:25,512 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:08:25,512 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 251, in update_output_right
+    df = compute_grid(...)
+         ^^^^^^^^^^^^^^^^^
+TypeError: compute_grid() missing 2 required positional arguments: 'Emax_eV' and 'N'
+2026-02-06 20:10:58,086 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:10:58,086 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:10:58,088 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:10:58,088 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:10:58,089 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:10:58,089 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:10:58,089 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:10:58,091 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:10:58,959 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:10:58,962 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-06 20:11:02,806 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:11:03,654 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:11:03,654 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-06 20:12:28,996 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:12:28,997 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:12:28,998 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:12:28,998 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:12:28,999 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:12:28,999 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:12:28,999 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:12:29,002 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:12:29,860 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:12:29,862 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-06 20:12:31,895 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:12:31,895 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:12:31,896 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:12:31,896 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:12:31,896 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:12:31,897 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:12:31,897 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:12:33,058 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:12:33,907 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:12:33,907 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-06 20:16:54,901 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:16:54,901 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:16:54,903 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:16:54,903 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:16:54,903 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:16:54,903 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:16:54,903 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:16:54,906 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:16:55,773 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:16:55,773 | INFO | polarization_part2 | compute_grid | Phi stats: min=-8.87125e-12, max=-8.87125e-14, mean=-1.92332e-12
+2026-02-06 20:16:55,773 | INFO | polarization_part2 | compute_grid | Phi samples: E0=10 Phi0=-8.87125e-12 | Emid=1029.39 Phimid=-8.7437e-13 | Eend=100000 Phiend=-8.87125e-14
+2026-02-06 20:16:55,773 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-06 20:16:57,682 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:16:57,682 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:16:57,684 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:16:57,684 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:16:57,684 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:16:57,684 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:16:57,684 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:16:58,302 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:16:59,195 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:16:59,195 | INFO | polarization_part2 | compute_grid | Phi stats: min=-8.87125e-12, max=-8.87125e-14, mean=-1.92332e-12
+2026-02-06 20:16:59,195 | INFO | polarization_part2 | compute_grid | Phi samples: E0=10 Phi0=-8.87125e-12 | Emid=1029.39 Phimid=-8.7437e-13 | Eend=100000 Phiend=-8.87125e-14
+2026-02-06 20:16:59,196 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-06 20:23:08,796 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:23:08,796 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:23:08,798 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:23:08,798 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:23:08,799 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:23:08,799 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:23:08,799 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:23:08,801 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:23:09,635 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:23:09,635 | INFO | polarization_part2 | compute_grid | Phi stats: min=-8.87125e-12, max=-8.87125e-14, mean=-1.92332e-12
+2026-02-06 20:23:09,635 | INFO | polarization_part2 | compute_grid | Phi samples: E0=10 Phi0=-8.87125e-12 | Emid=1029.39 Phimid=-8.7437e-13 | Eend=100000 Phiend=-8.87125e-14
+2026-02-06 20:23:09,636 | ERROR | polarization_part2 | compute_grid | failed to save Phi CSV
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 195, in compute_grid
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+         ^^^^^^^^^^^^
+AttributeError: module 'datetime' has no attribute 'now'
+2026-02-06 20:23:09,637 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-06 20:23:17,366 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:23:17,366 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:23:17,367 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:23:17,367 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:23:17,368 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:23:17,368 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:23:17,368 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:23:19,045 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:23:19,884 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:23:19,884 | INFO | polarization_part2 | compute_grid | Phi stats: min=-8.87125e-12, max=-8.87125e-14, mean=-1.92332e-12
+2026-02-06 20:23:19,885 | INFO | polarization_part2 | compute_grid | Phi samples: E0=10 Phi0=-8.87125e-12 | Emid=1029.39 Phimid=-8.7437e-13 | Eend=100000 Phiend=-8.87125e-14
+2026-02-06 20:23:19,885 | ERROR | polarization_part2 | compute_grid | failed to save Phi CSV
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 195, in compute_grid
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+         ^^^^^^^^^^^^
+AttributeError: module 'datetime' has no attribute 'now'
+2026-02-06 20:23:19,886 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-06 20:23:45,991 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:23:45,991 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:23:45,993 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:23:45,993 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:23:45,993 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:23:45,993 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:23:45,993 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:23:47,337 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:23:48,195 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:23:48,195 | INFO | polarization_part2 | compute_grid | Phi stats: min=-8.87125e-12, max=-8.87125e-14, mean=-1.92332e-12
+2026-02-06 20:23:48,195 | INFO | polarization_part2 | compute_grid | Phi samples: E0=10 Phi0=-8.87125e-12 | Emid=1029.39 Phimid=-8.7437e-13 | Eend=100000 Phiend=-8.87125e-14
+2026-02-06 20:23:48,195 | ERROR | polarization_part2 | compute_grid | failed to save Phi CSV
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 195, in compute_grid
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+         ^^^^^^^^^^^^
+AttributeError: module 'datetime' has no attribute 'now'
+2026-02-06 20:23:48,196 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-06 20:24:14,880 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:24:14,880 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:24:14,884 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:24:14,885 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:24:14,886 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:24:14,886 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:24:14,886 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:24:14,889 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:24:17,468 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:24:17,469 | INFO | polarization_part2 | compute_grid | Phi stats: min=-8.87125e-12, max=-8.87125e-14, mean=-1.92332e-12
+2026-02-06 20:24:17,469 | INFO | polarization_part2 | compute_grid | Phi samples: E0=10 Phi0=-8.87125e-12 | Emid=1029.39 Phimid=-8.7437e-13 | Eend=100000 Phiend=-8.87125e-14
+2026-02-06 20:24:36,130 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:24:36,131 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:24:36,132 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:24:36,132 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:24:36,133 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:24:36,133 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:24:36,133 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:24:36,135 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:24:37,025 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:24:37,025 | INFO | polarization_part2 | compute_grid | Phi stats: min=-8.87125e-12, max=-8.87125e-14, mean=-1.92332e-12
+2026-02-06 20:24:37,025 | INFO | polarization_part2 | compute_grid | Phi samples: E0=10 Phi0=-8.87125e-12 | Emid=1029.39 Phimid=-8.7437e-13 | Eend=100000 Phiend=-8.87125e-14
+2026-02-06 20:24:37,026 | ERROR | polarization_part2 | compute_grid | failed to save Phi CSV
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 195, in compute_grid
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+         ^^^^^^^^^^^^
+AttributeError: module 'datetime' has no attribute 'now'
+2026-02-06 20:24:37,027 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-06 20:24:38,776 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:24:39,650 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:24:39,650 | INFO | polarization_part2 | compute_grid | Phi stats: min=-8.87125e-12, max=-8.87125e-14, mean=-1.92332e-12
+2026-02-06 20:24:39,650 | INFO | polarization_part2 | compute_grid | Phi samples: E0=10 Phi0=-8.87125e-12 | Emid=1029.39 Phimid=-8.7437e-13 | Eend=100000 Phiend=-8.87125e-14
+2026-02-06 20:24:39,650 | ERROR | polarization_part2 | compute_grid | failed to save Phi CSV
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 195, in compute_grid
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+         ^^^^^^^^^^^^
+AttributeError: module 'datetime' has no attribute 'now'
+2026-02-06 20:24:39,651 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-06 20:24:39,785 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:24:39,785 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:24:39,787 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:24:39,787 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:24:39,787 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:24:39,787 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:24:39,788 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:24:39,797 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:24:39,797 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:24:39,800 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:24:39,800 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:24:39,800 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:24:39,800 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:24:39,800 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:25:07,377 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:25:07,377 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:25:07,378 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:25:07,378 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:25:07,379 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:25:07,379 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:25:07,379 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:25:07,381 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:25:08,247 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:25:08,247 | INFO | polarization_part2 | compute_grid | Phi stats: min=-8.87125e-12, max=-8.87125e-14, mean=-1.92332e-12
+2026-02-06 20:25:08,247 | INFO | polarization_part2 | compute_grid | Phi samples: E0=10 Phi0=-8.87125e-12 | Emid=1029.39 Phimid=-8.7437e-13 | Eend=100000 Phiend=-8.87125e-14
+2026-02-06 20:25:08,254 | INFO | polarization_part2 | compute_grid | Phi saved to CSV: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_dump_20260206_202508.csv (160 rows)
+2026-02-06 20:25:08,254 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-06 20:25:09,575 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-06 20:25:09,575 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-06 20:25:09,577 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-06 20:25:09,577 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-06 20:25:09,577 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-06 20:25:09,577 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-06 20:25:09,577 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-06 20:25:10,118 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å
+2026-02-06 20:25:10,993 | INFO | polarization_part2 | compute_grid | Emin=10 eV, Emax=1e+05 eV, N=160, i3_mode=sum_avg
+2026-02-06 20:25:10,993 | INFO | polarization_part2 | compute_grid | Phi stats: min=-8.87125e-12, max=-8.87125e-14, mean=-1.92332e-12
+2026-02-06 20:25:10,993 | INFO | polarization_part2 | compute_grid | Phi samples: E0=10 Phi0=-8.87125e-12 | Emid=1029.39 Phimid=-8.7437e-13 | Eend=100000 Phiend=-8.87125e-14
+2026-02-06 20:25:10,997 | INFO | polarization_part2 | compute_grid | Phi saved to CSV: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_dump_20260206_202510.csv (160 rows)
+2026-02-06 20:25:10,997 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
