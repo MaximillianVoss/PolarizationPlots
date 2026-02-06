@@ -3,6 +3,8 @@
 import tkinter as tk
 from tkinter import ttk
 import numpy as np
+import os
+from datetime import datetime
 
 from lattice import nearest_atoms, compute_lattice_n_auto
 from transitions import transition_matrices
@@ -15,6 +17,17 @@ from polarization_part2 import (
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+import logging
+
+logging.basicConfig(
+    filename="log.txt",
+    filemode="a",  # дописываем
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    encoding="utf-8"
+)
+
+logger = logging.getLogger(__name__)
 
 
 class App(tk.Tk):
@@ -184,8 +197,22 @@ class App(tk.Tk):
         interaction_radius = 5 * R_bohr
         n = int(self.lattice_radius.get())
 
+        logger.info(
+            "LEFT | a=%.4f Å, R_bohr=%.4f Å, interaction_radius=%.4f Å, "
+            "alpha=%.4f rad, beta=%.4f rad, n=%d",
+            a, R_bohr, interaction_radius, alpha, beta, n
+        )
+
         atoms = nearest_atoms(a, interaction_radius, alpha, beta, n=n)
+        logger.info("LEFT | найдено атомов: %d", len(atoms))
+
         matrices, inverses = transition_matrices(L_source=1)
+        for Ln, D in matrices.items():
+            logger.info(
+                "LEFT | D(Ln=%d), det=%.6e, invertible=%s",
+                Ln, np.linalg.det(D),
+                inverses[Ln] is not None
+            )
 
         txt = (f"Ближайшие атомы (расстояние до прямой ≤ {interaction_radius:.2f} Å):\n"
                f"Всего найдено: {len(atoms)}\n")
@@ -214,6 +241,14 @@ class App(tk.Tk):
     # -------- Правая панель (Часть 2) --------
     def update_output_right(self):
         try:
+            logger.info(
+                "RIGHT | Emin=%.3g eV, Emax=%.3g eV, N=%d, Z=%.3g, a=%.3g Å, b=%.3g Å, "
+                "c1=%.3g, c2=%.3g, dr=%.3g Å, rmax=%.3g Å",
+                self.Emin.get(), self.Emax.get(), int(self.Npts.get()),
+                self.Z.get(), self.a.get(), self.b.get(),
+                self.c1.get(), self.c2.get(),
+                self.dr.get(), self.rmax.get()
+            )
             chi_fn = chi_table_interp if self.use_table_chi.get() else chi_default
             i3_mode = "sum_avg" if self.i3_mode_sum.get() else "trapz"
 
@@ -224,7 +259,10 @@ class App(tk.Tk):
                 dr_ang=self.dr.get(), r_max_ang=self.rmax.get(),
                 chi=chi_fn, i3_mode=i3_mode
             )
+
+            logger.info("RIGHT | сетка рассчитана: %d точек", len(df))
         except Exception as ex:
+            logger.exception("RIGHT | ошибка при расчёте")
             for ax in (self.ax_sum, self.ax_spin):
                 ax.clear()
                 ax.text(0.05, 0.95, f"Ошибка: {ex}", transform=ax.transAxes,
