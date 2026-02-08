@@ -10,10 +10,12 @@ from lattice import nearest_atoms, compute_lattice_n_auto
 from transitions import transition_matrices
 from polarization_part2 import (
     compute_grid,
+    compute_grid_atoms,
     chi_table_interp,
     chi_default,
     spin_amplitudes_both,  # обе подготовки спина
 )
+from polarization_part2 import compute_grid_atoms
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
@@ -139,7 +141,7 @@ class App(tk.Tk):
         self.update_output_right()
 
     # -------- UI helpers --------
-    def _make_slider(self, parent, label, var, mn, mx, row, description="", resolution=0.01):
+    def _make_slider(self, parent, label, var, mn, mx, row, description="", resolution=0.01, auto_recompute=False):
         frame = ttk.Frame(parent)
         frame.grid(row=row, column=0, columnspan=3, sticky="ew", pady=(2, 0))
         frame.columnconfigure(1, weight=1)
@@ -151,7 +153,8 @@ class App(tk.Tk):
             ttk.Label(label_frame, text=f"({description})", foreground="#555").grid(row=1, column=0, sticky="w")
 
         def on_change(_):
-            if hasattr(self, "auto") and self.auto.get():
+            # Автопересчёт только там, где явно разрешено
+            if auto_recompute and hasattr(self, "auto") and self.auto.get():
                 self.update_output_right()
 
         sld = ttk.Scale(frame, from_=mn, to=mx, orient="horizontal", variable=var, command=on_change)
@@ -241,26 +244,79 @@ class App(tk.Tk):
     # -------- Правая панель (Часть 2) --------
     def update_output_right(self):
         try:
-            logger.info(
-                "RIGHT | Emin=%.3g eV, Emax=%.3g eV, N=%d, Z=%.3g, a=%.3g Å, b=%.3g Å, "
-                "c1=%.3g, c2=%.3g, dr=%.3g Å, rmax=%.3g Å",
-                self.Emin.get(), self.Emax.get(), int(self.Npts.get()),
-                self.Z.get(), self.a.get(), self.b.get(),
-                self.c1.get(), self.c2.get(),
-                self.dr.get(), self.rmax.get()
-            )
+            # --- выбор chi и режима I3 ---
             chi_fn = chi_table_interp if self.use_table_chi.get() else chi_default
             i3_mode = "sum_avg" if self.i3_mode_sum.get() else "trapz"
 
-            df = compute_grid(
+            # --- параметры геометрии (Часть 1) ---
+            a_lattice = float(self.a.get())  # постоянная решётки (Å)
+            R_bohr = float(self.R_bohr.get())  # радиус Бора (Å)
+            alpha = float(self.alpha.get())  # рад
+            beta = float(self.beta.get())  # рад
+            n = int(self.lattice_radius.get())  # радиус по узлам
+            interaction_radius = 5.0 * R_bohr  # 5 радиусов Бора
+
+            # --- атомы и a_list = d_прямой (impact parameter) ---
+            atoms = nearest_atoms(a_lattice, interaction_radius, alpha, beta, n=n)
+
+            # сортировка по d_прямой (ближайшие важнее) + ограничение числа атомов (ускорение)
+            atoms_sorted = sorted(atoms, key=lambda it: float(it["distance_to_line"]))
+            MAX_ATOMS = 200
+            atoms_sorted = atoms_sorted[:MAX_ATOMS]
+
+            a_list_raw = [float(item["distance_to_line"]) for item in atoms_sorted]
+
+            # --- защита от a≈0 (иначе 1/a^5 взорвётся) ---
+            EPS_A = 1e-4  # Å (можно увеличить до 1e-3, если будут выбросы)
+            a_list = [a for a in a_list_raw if a > EPS_A]
+
+            logger.info(
+                "RIGHT | Emin=%.3g eV, Emax=%.3g eV, N=%d, Z=%.3g, lattice_a=%.3g Å, b=%.3g Å, "
+                "c1=%.3g, c2=%.3g, dr=%.3g Å, rmax=%.3g Å, atoms(all)=%d, atoms(used)=%d, "
+                "R_int=%.3g Å, n=%d, alpha=%.3g rad, beta=%.3g rad, eps_a=%.3g",
                 self.Emin.get(), self.Emax.get(), int(self.Npts.get()),
-                Z=self.Z.get(), a_ang=self.a.get(), b_ang=self.b.get(),
-                c1=self.c1.get(), c2=self.c2.get(),
-                dr_ang=self.dr.get(), r_max_ang=self.rmax.get(),
-                chi=chi_fn, i3_mode=i3_mode
+                self.Z.get(), a_lattice, self.b.get(),
+                self.c1.get(), self.c2.get(),
+                self.dr.get(), self.rmax.get(),
+                len(atoms), len(a_list),
+                interaction_radius, n,
+                alpha, beta,
+                EPS_A
+            )
+
+            if not a_list:
+                raise RuntimeError(
+                    "Не найдено атомов для суммирования Φ(E) (после фильтрации a≈0). "
+                    "Увеличьте n или радиус взаимодействия (R_bohr), либо измените α/β."
+                )
+
+            # --- проверка корректности пределов интегрирования ---
+            rmax = float(self.rmax.get())
+            a_max = max(a_list)
+            if rmax <= a_max:
+                raise RuntimeError(
+                    f"Некорректно: r_max={rmax:.6g} Å должен быть больше max(a=d_прямой)={a_max:.6g} Å. "
+                    "Увеличьте r_max или уменьшите радиус/кол-во атомов."
+                )
+
+            # --- расчёт сетки по энергии с суммированием по атомам (a = d_прямой) ---
+            df = compute_grid_atoms(
+                float(self.Emin.get()),
+                float(self.Emax.get()),
+                int(self.Npts.get()),
+                a_list_ang=a_list,
+                Z=float(self.Z.get()),
+                b_ang=float(self.b.get()),
+                c1=float(self.c1.get()),
+                c2=float(self.c2.get()),
+                dr_ang=float(self.dr.get()),
+                r_max_ang=rmax,
+                chi=chi_fn,
+                i3_mode=i3_mode
             )
 
             logger.info("RIGHT | сетка рассчитана: %d точек", len(df))
+
         except Exception as ex:
             logger.exception("RIGHT | ошибка при расчёте")
             for ax in (self.ax_sum, self.ax_spin):
@@ -273,15 +329,16 @@ class App(tk.Tk):
 
         # Матрица D и её Ln (Ln используем как L_atom в фазовой матрице)
         matrices, _ = transition_matrices(L_source=1)
-        #TODO: добавить комбобокс с выбором L
-        if 0 in matrices:
+        # TODO: добавить комбобокс с выбором L
+
+        if 1 in matrices:
             Ln, D = 1, matrices[1]
         else:
             Ln = next(iter(matrices.keys()))
             D = matrices[Ln]
 
         E = df["E_eV"].values
-        Phi = df["Phi"].values  # = I_total
+        Phi = df["Phi"].values
 
         sp = spin_amplitudes_both(E, Phi, D, L_atom=Ln)
 
@@ -308,11 +365,14 @@ class App(tk.Tk):
         self.fig.tight_layout()
         self.canvas.draw()
 
-        # краткая сводка в левый лог
+        # краткая сводка в левый лог (output)
         self.output.insert(
             tk.END,
-            f"\n[Часть 2] E∈[{self.Emin.get():.3g},{self.Emax.get():.3g}] эВ, "
-            f"N={int(self.Npts.get())}, Z={self.Z.get():.3g}, a={self.a.get():.3g} Å, b={self.b.get():.3g} Å, "
+            f"\n[Часть 2 | Σ по атомам] E∈[{self.Emin.get():.3g},{self.Emax.get():.3g}] эВ, "
+            f"N={int(self.Npts.get())}, Z={self.Z.get():.3g}, "
+            f"lattice_a={a_lattice:.3g} Å, b={self.b.get():.3g} Å, "
+            f"atoms={len(a_list)}, R_int={interaction_radius:.3g} Å, n={n}, "
+            f"α={alpha:.3g} rad, β={beta:.3g} rad, "
             f"χ={'table' if self.use_table_chi.get() else 'exp'}, "
             f"I3={'sum' if self.i3_mode_sum.get() else 'trapz'}, Ln={Ln}\n"
         )
