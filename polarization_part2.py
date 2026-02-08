@@ -71,28 +71,44 @@ def compute_I_components(
     I1 = (−(2*c1*c2)/V) * Z^(3/2) / a^5 * ∫ (r^2 − a^2)/r^(5/2) * χ^(3/2)( Z^(1/3) * r/b ) dr
     I2 = (−(6*c1*Z)/V) * 1/a^5 * ∫ (r^2 − a^2)/r^4 * χ( Z^(1/3) * r/b ) dr
     I3 = ( 6*c1*Z*b/(V*Z^(1/3)) ) * 1/a^5 * ∫ (r^2 − a^2)/r^3 * [ χ( Z^(1/3)*(r+dr)/b ) − χ( Z^(1/3)*r/b ) ] dr
-
-    Режим I3:
-      - "trapz"   : обычное интегрирование разности χ(r+dr)-χ(r) по r-сетке (trapz);
-      - "sum_avg" : «интеграл суммой» из примечания — идём r=a..r_max шагом dr, суммируем выражение и усредняем.
     """
 
+    # --- базовые проверки ---
+    if V <= 0:
+        raise ValueError("V должен быть > 0.")
+    if Z <= 0:
+        raise ValueError("Z должен быть > 0.")
+    if b_ang <= 0:
+        raise ValueError("b_ang должен быть > 0.")
+    if dr_ang <= 0:
+        raise ValueError("dr_ang должен быть > 0.")
 
+    a = float(a_ang)
+    b = float(b_ang)
+    dr = float(dr_ang)
 
-    if r_max_ang <= a_ang:
+    # защита от a≈0 (иначе pref = 1/a^5 взорвётся)
+    EPS_A = 1e-6  # Å (можно сделать 1e-4..1e-3 если будут выбросы)
+    if a <= EPS_A:
+        raise ValueError(f"a_ang слишком мал (a={a:.3g} Å). Нужна фильтрация/ограничение a=d_прямой.")
+
+    if r_max_ang <= a:
         raise ValueError("r_max_ang должен быть больше a_ang.")
 
-    a = float(a_ang); b = float(b_ang); dr = float(dr_ang)
-    z13 = Z ** (1.0/3.0)
-    pref = 1.0 / (a**5)
+    z13 = Z ** (1.0 / 3.0)
+    pref = 1.0 / (a ** 5)
 
-    # r-сетка для I1 и I2 (trapz)
+    # r-сетка для I1 и I2
     r = np.linspace(a, r_max_ang, int(n_r))
+
     x = z13 * r / b
     chi_r = chi(x, chi_params)
+
+    # на всякий случай (если какая-то chi вернёт отрицательные)
+    chi_r = np.clip(chi_r, 0.0, None)
     chi_r_32 = np.power(chi_r, 1.5)
 
-    term = (r**2 - a**2)
+    term = (r ** 2 - a ** 2)
     f1 = term / np.power(r, 2.5) * chi_r_32
     f2 = term / np.power(r, 4.0) * chi_r
 
@@ -100,35 +116,158 @@ def compute_I_components(
     I2_int = np.trapz(f2, r)
 
     if i3_mode == "trapz":
-        chi_r_shift = chi(z13 * (r + dr) / b, chi_params)
+        # чтобы r+dr не уезжал за r_max: ограничим аргумент сверху
+        r_shift = np.minimum(r + dr, r_max_ang)
+        chi_r_shift = chi(z13 * r_shift / b, chi_params)
+        chi_r_shift = np.clip(chi_r_shift, 0.0, None)
+
         f3 = term / np.power(r, 3.0) * (chi_r_shift - chi_r)
         I3_int = np.trapz(f3, r)
     else:
-        # Суммирование по шагам dr с последующим усреднением (как в примечании)
+        # Суммирование по шагам dr с последующим усреднением
         p = 0.0
         count = 0
         r_val = a
         while (r_val + dr) <= r_max_ang:
             x0 = z13 * r_val / b
             x1 = z13 * (r_val + dr) / b
-            chi0 = chi(np.array([x0]), chi_params)[0]
-            chi1 = chi(np.array([x1]), chi_params)[0]
-            term0 = (r_val**2 - a**2)
-            p += term0 / (r_val**3) * (chi1 - chi0)
+            chi0 = float(np.clip(chi(np.array([x0]), chi_params)[0], 0.0, None))
+            chi1 = float(np.clip(chi(np.array([x1]), chi_params)[0], 0.0, None))
+            term0 = (r_val ** 2 - a ** 2)
+            p += term0 / (r_val ** 3) * (chi1 - chi0)
             count += 1
             r_val += dr
         I3_int = p / max(count, 1)
 
     I1 = (-(2.0 * c1 * c2) / V) * (Z ** 1.5) * pref * I1_int
     I2 = (-(6.0 * c1 * Z) / V) * pref * I2_int
-    I3 = ((6.0 * c1 * Z * b) / (V * (Z ** (1.0/3.0)))) * pref * I3_int
+    I3 = ((6.0 * c1 * Z * b) / (V * (Z ** (1.0 / 3.0)))) * pref * I3_int
 
     logger.debug(
-        "I_components | V=%.3e, Z=%.3g, a=%.3g, b=%.3g, dr=%.3g, rmax=%.3g",
-        V, Z, a_ang, b_ang, dr_ang, r_max_ang
+        "I_components | V=%.3e, Z=%.3g, a=%.6g, b=%.6g, dr=%.6g, rmax=%.6g, mode=%s",
+        V, Z, a, b, dr, r_max_ang, i3_mode
     )
 
     return I1, I2, I3, (I1 + I2 + I3)
+
+
+def compute_grid_atoms(
+    Emin_eV: float,
+    Emax_eV: float,
+    N: int,
+    *,
+    a_list_ang: list[float],   # список d_прямой (Å)
+    Z: float,
+    b_ang: float,
+    c1: float,
+    c2: float,
+    dr_ang: float,
+    r_max_ang: float,
+    chi: Callable[[np.ndarray, Dict[str, float] | None], np.ndarray] = chi_table_interp,
+    chi_params: Dict[str, float] | None = None,
+    i3_mode: Literal["trapz", "sum_avg"] = "sum_avg",
+    dump_atom_phi_csv: bool = True,   # <-- НОВОЕ: сохранять промежуточные Φ_k
+    max_atoms_dump: int = 200,        # <-- НОВОЕ: ограничить кол-во атомов в дампе
+) -> pd.DataFrame:
+    """
+    Сетка по энергии, но Phi(E) = Σ_k Phi_k(E), где для каждого атома k:
+      a = d_прямой(k) (impact parameter).
+
+    Дополнительно (опционально) сохраняет промежуточные Φ_k(E) в CSV.
+    """
+
+    if Emin_eV <= 0 or Emax_eV <= 0 or Emax_eV <= Emin_eV:
+        raise ValueError("Требуется 0 < Emin < Emax.")
+    if not a_list_ang:
+        raise ValueError("Список a_list_ang пуст: нет атомов для суммирования.")
+    if any(a <= 0 for a in a_list_ang):
+        raise ValueError("В a_list_ang найдены некорректные значения (<=0).")
+
+    E = np.logspace(np.log10(Emin_eV), np.log10(Emax_eV), int(N))
+    V = energy_eV_to_speed_mps(E)
+
+    a_arr = np.asarray(a_list_ang, dtype=float)
+
+    # ограничим число атомов (и для скорости, и для сохранения)
+    if a_arr.size > int(max_atoms_dump):
+        a_arr = np.sort(a_arr)[:int(max_atoms_dump)]
+    else:
+        a_arr = np.sort(a_arr)
+
+    I1, I2, I3, It = [], [], [], []
+
+    # матрицы вкладов по атомам (по желанию)
+    Phi_atoms = np.empty((len(E), len(a_arr)), dtype=float) if dump_atom_phi_csv else None
+
+    for iE, v in enumerate(V):
+        s1 = s2 = s3 = st = 0.0
+
+        for jA, a_imp in enumerate(a_arr):
+            i1, i2, i3, it = compute_I_components(
+                float(v),
+                Z=Z, a_ang=float(a_imp), b_ang=b_ang, c1=c1, c2=c2,
+                dr_ang=dr_ang, r_max_ang=r_max_ang,
+                chi=chi, chi_params=chi_params, i3_mode=i3_mode
+            )
+            s1 += i1; s2 += i2; s3 += i3; st += it
+
+            if Phi_atoms is not None:
+                Phi_atoms[iE, jA] = float(it)  # вклад k-го атома в Φ(E)
+
+        I1.append(s1); I2.append(s2); I3.append(s3); It.append(st)
+
+    logger.info(
+        "compute_grid_atoms | Emin=%.3g eV, Emax=%.3g eV, N=%d, atoms=%d, i3_mode=%s",
+        Emin_eV, Emax_eV, int(N), int(len(a_arr)), i3_mode
+    )
+
+    phi = np.asarray(It, dtype=float)
+    logger.info(
+        "compute_grid_atoms | Phi stats: min=%.6g, max=%.6g, mean=%.6g",
+        float(phi.min()), float(phi.max()), float(phi.mean())
+    )
+
+    df_sum = pd.DataFrame({
+        "E_eV": E,
+        "V_m_per_s": V,
+        "I1": np.asarray(I1, dtype=float),
+        "I2": np.asarray(I2, dtype=float),
+        "I3": np.asarray(I3, dtype=float),
+        "Phi": phi,
+    })
+
+    # --- сохранение промежуточных Φ_k(E) ---
+    if dump_atom_phi_csv and Phi_atoms is not None:
+        try:
+            os.makedirs("data", exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            # (1) "широкий" формат: одна строка = энергия, колонки = атомы (a_k)
+            cols = ["E_eV"] + [f"a_{k}_A={a_arr[k]:.6g}" for k in range(len(a_arr))]
+            wide = np.column_stack([E, Phi_atoms])
+            df_wide = pd.DataFrame(wide, columns=cols)
+            path_wide = os.path.join("data", f"phi_atoms_matrix_{ts}.csv")
+            df_wide.to_csv(path_wide, index=False, encoding="utf-8")
+            logger.info("compute_grid_atoms | saved per-atom Phi matrix: %s", os.path.abspath(path_wide))
+
+            # (2) "длинный" формат: удобно фильтровать/группировать
+            # E_i, atom_idx, a, Phi_atom
+            df_long = pd.DataFrame({
+                "E_eV": np.repeat(E, len(a_arr)),
+                "atom_idx": np.tile(np.arange(len(a_arr)), len(E)),
+                "a_ang": np.tile(a_arr, len(E)),
+                "Phi_atom": Phi_atoms.reshape(-1),
+            })
+            path_long = os.path.join("data", f"phi_atoms_long_{ts}.csv")
+            df_long.to_csv(path_long, index=False, encoding="utf-8")
+            logger.info("compute_grid_atoms | saved per-atom Phi long: %s", os.path.abspath(path_long))
+
+        except Exception:
+            logger.exception("compute_grid_atoms | failed to save per-atom Phi CSV")
+
+    return df_sum
+
+
 
 def compute_grid(
     Emin_eV: float,
