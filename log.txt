@@ -841,3 +841,33 @@ ValueError: not enough values to unpack (expected 4, got 3)
 2026-02-11 15:38:51,244 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
 2026-02-11 15:38:51,244 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
 2026-02-11 15:38:51,245 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-11 15:41:00,676 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-11 15:41:00,676 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-11 15:41:00,678 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-11 15:41:00,678 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-11 15:41:00,678 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-11 15:41:00,678 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-11 15:41:00,678 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-11 15:41:00,681 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-11 15:41:00,682 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-11 15:41:00,682 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:41:01,841 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-02-11 15:41:01,842 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-0.000311636, max=-3.11636e-06, mean=-6.75637e-05
+2026-02-11 15:41:01,853 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260211_154101.csv
+2026-02-11 15:41:01,857 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260211_154101.csv
+2026-02-11 15:41:01,857 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-11 15:41:15,646 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=5
+2026-02-11 15:41:15,647 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=5
+2026-02-11 15:41:15,712 | INFO | lattice | lattice.nearest_atoms | всего узлов=1331, отобрано=5
+2026-02-11 15:41:15,712 | INFO | __main__ | LEFT | найдено атомов: 5
+2026-02-11 15:41:15,712 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-11 15:41:15,712 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-11 15:41:15,712 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-11 15:41:17,805 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=5
+2026-02-11 15:41:17,868 | INFO | lattice | lattice.nearest_atoms | всего узлов=1331, отобрано=5
+2026-02-11 15:41:17,868 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=5, atoms(used)=5, R_int=2.65 Å, n=5, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:41:23,430 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=5, i3_mode=sum_avg
+2026-02-11 15:41:23,430 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-0.0507493, max=-0.000507493, mean=-0.0110026
+2026-02-11 15:41:23,433 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260211_154123.csv
+2026-02-11 15:41:23,440 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260211_154123.csv
+2026-02-11 15:41:23,440 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
