@@ -51,104 +51,120 @@ def chi_default(x: np.ndarray, params: Dict[str, float] | None = None) -> np.nda
     return np.exp(-x)
 
 # -------------------- Интегралы I1, I2, I3 --------------------
+BOHR_TO_ANG = 0.52917721092
+C_LIGHT = 299792458.0
+INV_ALPHA = 137.04
+
 def compute_I_components(
     V: float,
-    *,
-    Z: float,
     a_ang: float,
+    Z: float,
     b_ang: float,
     c1: float,
     c2: float,
     dr_ang: float,
     r_max_ang: float,
-    chi: Callable[[np.ndarray, Dict[str, float] | None], np.ndarray] = chi_table_interp,
-    chi_params: Dict[str, float] | None = None,
-    n_r: int = 4000,
-    i3_mode: Literal["trapz", "sum_avg"] = "sum_avg",
-) -> Tuple[float, float, float, float]:
+    chi,
+    chi_params=None,
+    i3_mode: str = "sum_avg",
+):
     """
-    Реализация формул «Части 2».
-    I1 = (−(2*c1*c2)/V) * Z^(3/2) / a^5 * ∫ (r^2 − a^2)/r^(5/2) * χ^(3/2)( Z^(1/3) * r/b ) dr
-    I2 = (−(6*c1*Z)/V) * 1/a^5 * ∫ (r^2 − a^2)/r^4 * χ( Z^(1/3) * r/b ) dr
-    I3 = ( 6*c1*Z*b/(V*Z^(1/3)) ) * 1/a^5 * ∫ (r^2 − a^2)/r^3 * [ χ( Z^(1/3)*(r+dr)/b ) − χ( Z^(1/3)*r/b ) ] dr
+    Считает I1, I2, I3.
+
+    ВАЖНО (исправление единиц):
+    - входные длины заданы в Å, внутри переводим в a0 (атомные единицы): x[a0] = x[Å] / 0.529177...
+    - V приходит в м/с (из energy_eV_to_speed_mps), переводим в атомные единицы скорости:
+          V_au = (V / c) * 137.04
     """
 
-    # --- базовые проверки ---
-    if V <= 0:
-        raise ValueError("V должен быть > 0.")
-    if Z <= 0:
-        raise ValueError("Z должен быть > 0.")
-    if b_ang <= 0:
-        raise ValueError("b_ang должен быть > 0.")
-    if dr_ang <= 0:
-        raise ValueError("dr_ang должен быть > 0.")
+    # --- скорость: м/с -> a.u.  ---
+    V = float(V)
+    V_au = (V / C_LIGHT) * INV_ALPHA
+    if not np.isfinite(V_au) or V_au <= 0.0:
+        raise ValueError(f"Некорректная скорость: V={V} м/с, V_au={V_au}")
 
-    a = float(a_ang)
-    b = float(b_ang)
-    dr = float(dr_ang)
+    # --- длины: Å -> a0 ---
+    a = float(a_ang) / BOHR_TO_ANG
+    b = float(b_ang) / BOHR_TO_ANG
+    dr = float(dr_ang) / BOHR_TO_ANG
+    r_max = float(r_max_ang) / BOHR_TO_ANG
 
-    # защита от a≈0 (иначе pref = 1/a^5 взорвётся)
-    EPS_A = 1e-6  # Å (можно сделать 1e-4..1e-3 если будут выбросы)
-    if a <= EPS_A:
-        raise ValueError(f"a_ang слишком мал (a={a:.3g} Å). Нужна фильтрация/ограничение a=d_прямой.")
-
-    if r_max_ang <= a:
-        raise ValueError("r_max_ang должен быть больше a_ang.")
+    # --- проверки ---
+    EPS_A = 1e-6  # a0
+    if not np.isfinite(a) or a <= EPS_A:
+        raise ValueError(f"a слишком мал/некорректен: a_ang={a_ang}, a={a} a0")
+    if not np.isfinite(b) or b <= 0.0:
+        raise ValueError(f"b некорректен: b_ang={b_ang}, b={b} a0")
+    if not np.isfinite(dr) or dr <= 0.0:
+        raise ValueError(f"dr некорректен: dr_ang={dr_ang}, dr={dr} a0")
+    if not np.isfinite(r_max) or r_max <= a:
+        raise ValueError(f"r_max должен быть > a: r_max_ang={r_max_ang}, r_max={r_max} a0, a={a} a0")
 
     z13 = Z ** (1.0 / 3.0)
     pref = 1.0 / (a ** 5)
 
-    # r-сетка для I1 и I2
-    r = np.linspace(a, r_max_ang, int(n_r))
+    # сетка r в a0
+    n_r = int(max(2, np.ceil((r_max - a) / dr) + 1))
+    r = np.linspace(a, r_max, n_r)
 
+    # χ аргумент безразмерный: Z^(1/3) * r/b (оба в a0)
     x = z13 * r / b
-    chi_r = chi(x, chi_params)
-
-    # на всякий случай (если какая-то chi вернёт отрицательные)
-    chi_r = np.clip(chi_r, 0.0, None)
+    chi_r = chi(x, chi_params) if chi_params is not None else chi(x)
+    chi_r = np.asarray(chi_r, dtype=float)
+    chi_r = np.clip(chi_r, 0.0, None)          # защита от отрицательных значений
     chi_r_32 = np.power(chi_r, 1.5)
 
     term = (r ** 2 - a ** 2)
+
+    # I1, I2
     f1 = term / np.power(r, 2.5) * chi_r_32
     f2 = term / np.power(r, 4.0) * chi_r
 
     I1_int = np.trapz(f1, r)
     I2_int = np.trapz(f2, r)
 
+    # I3
     if i3_mode == "trapz":
-        # чтобы r+dr не уезжал за r_max: ограничим аргумент сверху
-        r_shift = np.minimum(r + dr, r_max_ang)
-        chi_r_shift = chi(z13 * r_shift / b, chi_params)
-        chi_r_shift = np.clip(chi_r_shift, 0.0, None)
+        r_shift = np.minimum(r + dr, r_max)
+        x_shift = z13 * r_shift / b
+        chi_shift = chi(x_shift, chi_params) if chi_params is not None else chi(x_shift)
+        chi_shift = np.asarray(chi_shift, dtype=float)
+        chi_shift = np.clip(chi_shift, 0.0, None)
 
-        f3 = term / np.power(r, 3.0) * (chi_r_shift - chi_r)
+        f3 = term / np.power(r, 3.0) * (chi_shift - chi_r)
         I3_int = np.trapz(f3, r)
-    else:
-        # Суммирование по шагам dr с последующим усреднением
+
+    elif i3_mode == "sum_avg":
         p = 0.0
         count = 0
         r_val = a
-        while (r_val + dr) <= r_max_ang:
+        while (r_val + dr) <= r_max:
             x0 = z13 * r_val / b
             x1 = z13 * (r_val + dr) / b
-            chi0 = float(np.clip(chi(np.array([x0]), chi_params)[0], 0.0, None))
-            chi1 = float(np.clip(chi(np.array([x1]), chi_params)[0], 0.0, None))
+
+            chi0 = chi(np.array([x0]), chi_params)[0] if chi_params is not None else chi(np.array([x0]))[0]
+            chi1 = chi(np.array([x1]), chi_params)[0] if chi_params is not None else chi(np.array([x1]))[0]
+            chi0 = float(max(0.0, chi0))
+            chi1 = float(max(0.0, chi1))
+
             term0 = (r_val ** 2 - a ** 2)
             p += term0 / (r_val ** 3) * (chi1 - chi0)
+
             count += 1
             r_val += dr
+
         I3_int = p / max(count, 1)
 
-    I1 = (-(2.0 * c1 * c2) / V) * (Z ** 1.5) * pref * I1_int
-    I2 = (-(6.0 * c1 * Z) / V) * pref * I2_int
-    I3 = ((6.0 * c1 * Z * b) / (V * (Z ** (1.0 / 3.0)))) * pref * I3_int
+    else:
+        raise ValueError(f"Неизвестный i3_mode: {i3_mode}")
 
-    logger.debug(
-        "I_components | V=%.3e, Z=%.3g, a=%.6g, b=%.6g, dr=%.6g, rmax=%.6g, mode=%s",
-        V, Z, a, b, dr, r_max_ang, i3_mode
-    )
+    # --- итоговые I1,I2,I3 (везде используем V_au) ---
+    I1 = (-(2.0 * c1 * c2) / V_au) * (Z ** 1.5) * pref * I1_int
+    I2 = (-(6.0 * c1 * Z) / V_au) * pref * I2_int
+    I3 = ((6.0 * c1 * Z * b) / (V_au * (Z ** (1.0 / 3.0)))) * pref * I3_int
 
-    return I1, I2, I3, (I1 + I2 + I3)
+    It = I1 + I2 + I3
+    return I1, I2, I3, It
 
 
 def compute_grid_atoms(

@@ -1,4 +1,3 @@
-# main.py
 # -*- coding: utf-8 -*-
 import tkinter as tk
 from tkinter import ttk
@@ -121,6 +120,19 @@ class App(tk.Tk):
         ttk.Button(right, text="Пересчитать (Часть 2)",
                    command=self.update_output_right).grid(row=row_r, column=0, columnspan=3, sticky="ew", pady=4); row_r += 1
 
+        # ====== КНОПКИ УВЕЛИЧЕНИЯ/СБРОСА ГРАФИКА ======
+        zoom_bar = ttk.Frame(right)
+        zoom_bar.grid(row=row_r, column=0, columnspan=3, sticky="ew", pady=(0, 6))
+        zoom_bar.columnconfigure(0, weight=1)
+
+        ttk.Label(zoom_bar, text="Масштаб графика:").pack(side="left")
+
+        ttk.Button(zoom_bar, text="Zoom +", command=lambda: self._zoom_plots(0.8)).pack(side="left", padx=6)
+        ttk.Button(zoom_bar, text="Zoom −", command=lambda: self._zoom_plots(1.25)).pack(side="left", padx=6)
+        ttk.Button(zoom_bar, text="Reset", command=self._reset_zoom).pack(side="left", padx=6)
+
+        row_r += 1
+
         # Два графика (на каждом две кривые: подготовка ↑ и ↓)
         self.fig = Figure(figsize=(6.4, 5.2), dpi=100)
         self.ax_sum = self.fig.add_subplot(211)   # проверочный: P↑+P↓
@@ -130,6 +142,10 @@ class App(tk.Tk):
         self.canvas = FigureCanvasTkAgg(self.fig, master=right)
         self.canvas.get_tk_widget().grid(row=row_r, column=0, columnspan=3, sticky="nsew")
         right.grid_rowconfigure(row_r, weight=1)
+        right.grid_columnconfigure(0, weight=1)  # важно для растяжения canvas
+
+        # Храним «дефолтные» лимиты для Reset (обновляются после каждого перерасчёта)
+        self._default_view_limits = None
 
         # Автопересчёт n при изменении геометрии
         for v in (self.a, self.R_bohr, self.alpha, self.beta, self.d_layer):
@@ -139,6 +155,64 @@ class App(tk.Tk):
         self._recompute_n()
         self.update_output_left()
         self.update_output_right()
+
+    # -------- Zoom helpers --------
+    def _zoom_axis(self, ax, factor):
+        """
+        factor < 1  -> zoom in (окно меньше)
+        factor > 1  -> zoom out (окно больше)
+        Поддержка линейной и лог шкалы по X/Y.
+        """
+        def zoom_linear(lim):
+            lo, hi = lim
+            c = (lo + hi) / 2.0
+            span = (hi - lo) * factor / 2.0
+            return (c - span, c + span)
+
+        def zoom_log(lim):
+            lo, hi = lim
+            lo = max(lo, 1e-300)
+            hi = max(hi, 1e-300)
+            llo = np.log10(lo)
+            lhi = np.log10(hi)
+            c = (llo + lhi) / 2.0
+            span = (lhi - llo) * factor / 2.0
+            return (10 ** (c - span), 10 ** (c + span))
+
+        # X
+        if ax.get_xscale() == "log":
+            ax.set_xlim(zoom_log(ax.get_xlim()))
+        else:
+            ax.set_xlim(zoom_linear(ax.get_xlim()))
+
+        # Y
+        if ax.get_yscale() == "log":
+            ax.set_ylim(zoom_log(ax.get_ylim()))
+        else:
+            ax.set_ylim(zoom_linear(ax.get_ylim()))
+
+    def _zoom_plots(self, factor):
+        """Применить zoom сразу к двум осям."""
+        try:
+            for ax in (self.ax_sum, self.ax_spin):
+                self._zoom_axis(ax, factor)
+            self.canvas.draw()
+        except Exception as ex:
+            logger.exception("ZOOM | ошибка")
+            self.output.insert(tk.END, f"\n[Zoom] Ошибка: {ex}\n")
+
+    def _reset_zoom(self):
+        """Сбросить лимиты на те, что были после последнего перерасчёта."""
+        if not self._default_view_limits:
+            return
+        try:
+            for ax, lim in self._default_view_limits.items():
+                ax.set_xlim(lim["xlim"])
+                ax.set_ylim(lim["ylim"])
+            self.canvas.draw()
+        except Exception as ex:
+            logger.exception("RESET_ZOOM | ошибка")
+            self.output.insert(tk.END, f"\n[Reset Zoom] Ошибка: {ex}\n")
 
     # -------- UI helpers --------
     def _make_slider(self, parent, label, var, mn, mx, row, description="", resolution=0.01, auto_recompute=False):
@@ -363,6 +437,13 @@ class App(tk.Tk):
         self.ax_spin.legend()
 
         self.fig.tight_layout()
+
+        # Сохраняем дефолтные лимиты (для Reset) — после каждого перерасчёта
+        self._default_view_limits = {
+            self.ax_sum: {"xlim": self.ax_sum.get_xlim(), "ylim": self.ax_sum.get_ylim()},
+            self.ax_spin: {"xlim": self.ax_spin.get_xlim(), "ylim": self.ax_spin.get_ylim()},
+        }
+
         self.canvas.draw()
 
         # краткая сводка в левый лог (output)
