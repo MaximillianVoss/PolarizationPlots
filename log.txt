@@ -579,3 +579,265 @@ AttributeError: module 'datetime' has no attribute 'now'
 2026-02-08 20:01:27,521 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260208_200127.csv
 2026-02-08 20:01:27,531 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260208_200127.csv
 2026-02-08 20:01:27,531 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-08 20:04:12,782 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-08 20:04:12,783 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-08 20:04:12,785 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-08 20:04:12,785 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-08 20:04:12,785 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-08 20:04:12,785 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-08 20:04:12,785 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-08 20:04:12,787 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-08 20:04:12,788 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-08 20:04:12,788 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-08 20:04:15,535 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-02-08 20:04:15,535 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-3.51879e-09, max=-3.51879e-11, mean=-7.62885e-10
+2026-02-08 20:04:15,541 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260208_200415.csv
+2026-02-08 20:04:15,543 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260208_200415.csv
+2026-02-08 20:04:15,543 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-08 20:54:54,766 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-08 20:54:54,766 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-08 20:54:54,768 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-08 20:54:54,768 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-08 20:54:54,768 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-08 20:54:54,768 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-08 20:54:54,768 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-08 20:54:54,770 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-08 20:54:54,771 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-08 20:54:54,771 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-08 20:54:57,376 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-02-08 20:54:57,377 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-3.51879e-09, max=-3.51879e-11, mean=-7.62885e-10
+2026-02-08 20:54:57,381 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260208_205457.csv
+2026-02-08 20:54:57,383 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260208_205457.csv
+2026-02-08 20:54:57,383 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-08 20:55:21,974 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-08 20:55:21,974 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-08 20:55:21,976 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-08 20:55:21,976 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-08 20:55:21,976 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-08 20:55:21,976 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-08 20:55:21,976 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-08 20:55:21,978 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-08 20:55:21,980 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-08 20:55:21,980 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-08 20:55:24,733 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-02-08 20:55:24,733 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-3.51879e-09, max=-3.51879e-11, mean=-7.62885e-10
+2026-02-08 20:55:24,737 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260208_205524.csv
+2026-02-08 20:55:24,739 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260208_205524.csv
+2026-02-08 20:55:24,739 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-08 20:55:26,635 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-08 20:55:26,636 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-08 20:55:26,638 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-08 20:55:26,638 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-08 20:55:26,638 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-08 20:55:26,638 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-08 20:55:26,638 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-08 20:55:29,781 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=3
+2026-02-08 20:55:29,781 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=3
+2026-02-08 20:55:29,800 | INFO | lattice | lattice.nearest_atoms | всего узлов=343, отобрано=3
+2026-02-08 20:55:29,800 | INFO | __main__ | LEFT | найдено атомов: 3
+2026-02-08 20:55:29,800 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-08 20:55:29,800 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-08 20:55:29,800 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-08 20:55:30,735 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=3
+2026-02-08 20:55:30,754 | INFO | lattice | lattice.nearest_atoms | всего узлов=343, отобрано=3
+2026-02-08 20:55:30,754 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=3, atoms(used)=3, R_int=2.65 Å, n=3, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-08 20:55:39,364 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=3, i3_mode=sum_avg
+2026-02-08 20:55:39,364 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-4.06324e-08, max=-4.06324e-10, mean=-8.80925e-09
+2026-02-08 20:55:39,368 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260208_205539.csv
+2026-02-08 20:55:39,371 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260208_205539.csv
+2026-02-08 20:55:39,371 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-02-11 15:36:01,565 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-11 15:36:01,566 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-11 15:36:01,571 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-11 15:36:01,571 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-11 15:36:01,579 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-11 15:36:01,579 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-11 15:36:01,580 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-11 15:36:01,581 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-11 15:36:01,583 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-11 15:36:01,583 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:36:01,590 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 377, in update_output_right
+    df = compute_grid_atoms(
+         ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 221, in compute_grid_atoms
+    i1, i2, i3, it = compute_I_components(
+    ^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 4, got 3)
+2026-02-11 15:36:10,920 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-11 15:36:10,920 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-11 15:36:10,922 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-11 15:36:10,922 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-11 15:36:10,922 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-11 15:36:10,922 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-11 15:36:10,922 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-11 15:36:13,116 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=3
+2026-02-11 15:36:13,116 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=3
+2026-02-11 15:36:13,133 | INFO | lattice | lattice.nearest_atoms | всего узлов=343, отобрано=3
+2026-02-11 15:36:13,133 | INFO | __main__ | LEFT | найдено атомов: 3
+2026-02-11 15:36:13,134 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-11 15:36:13,134 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-11 15:36:13,134 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-11 15:36:20,089 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=3
+2026-02-11 15:36:20,107 | INFO | lattice | lattice.nearest_atoms | всего узлов=343, отобрано=3
+2026-02-11 15:36:20,107 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=3, atoms(used)=3, R_int=2.65 Å, n=3, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:36:20,117 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 377, in update_output_right
+    df = compute_grid_atoms(
+         ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 221, in compute_grid_atoms
+    i1, i2, i3, it = compute_I_components(
+    ^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 4, got 3)
+2026-02-11 15:36:22,403 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=3
+2026-02-11 15:36:22,422 | INFO | lattice | lattice.nearest_atoms | всего узлов=343, отобрано=3
+2026-02-11 15:36:22,422 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=3, atoms(used)=3, R_int=2.65 Å, n=3, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:36:22,430 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 377, in update_output_right
+    df = compute_grid_atoms(
+         ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 221, in compute_grid_atoms
+    i1, i2, i3, it = compute_I_components(
+    ^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 4, got 3)
+2026-02-11 15:36:24,103 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=3
+2026-02-11 15:36:24,121 | INFO | lattice | lattice.nearest_atoms | всего узлов=343, отобрано=3
+2026-02-11 15:36:24,121 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=3, atoms(used)=3, R_int=2.65 Å, n=3, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:36:24,129 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 377, in update_output_right
+    df = compute_grid_atoms(
+         ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 221, in compute_grid_atoms
+    i1, i2, i3, it = compute_I_components(
+    ^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 4, got 3)
+2026-02-11 15:36:28,260 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=2
+2026-02-11 15:36:28,260 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=2
+2026-02-11 15:36:28,267 | INFO | lattice | lattice.nearest_atoms | всего узлов=125, отобрано=2
+2026-02-11 15:36:28,267 | INFO | __main__ | LEFT | найдено атомов: 2
+2026-02-11 15:36:28,267 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-11 15:36:28,267 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-11 15:36:28,267 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-11 15:36:30,141 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=5
+2026-02-11 15:36:30,141 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=5
+2026-02-11 15:36:30,210 | INFO | lattice | lattice.nearest_atoms | всего узлов=1331, отобрано=5
+2026-02-11 15:36:30,210 | INFO | __main__ | LEFT | найдено атомов: 5
+2026-02-11 15:36:30,210 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-11 15:36:30,210 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-11 15:36:30,210 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-11 15:36:31,184 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=5
+2026-02-11 15:36:31,254 | INFO | lattice | lattice.nearest_atoms | всего узлов=1331, отобрано=5
+2026-02-11 15:36:31,254 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=5, atoms(used)=5, R_int=2.65 Å, n=5, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:36:31,264 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 377, in update_output_right
+    df = compute_grid_atoms(
+         ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 221, in compute_grid_atoms
+    i1, i2, i3, it = compute_I_components(
+    ^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 4, got 3)
+2026-02-11 15:36:31,556 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=5
+2026-02-11 15:36:31,635 | INFO | lattice | lattice.nearest_atoms | всего узлов=1331, отобрано=5
+2026-02-11 15:36:31,635 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=5, atoms(used)=5, R_int=2.65 Å, n=5, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:36:31,644 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 377, in update_output_right
+    df = compute_grid_atoms(
+         ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 221, in compute_grid_atoms
+    i1, i2, i3, it = compute_I_components(
+    ^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 4, got 3)
+2026-02-11 15:36:38,707 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=5
+2026-02-11 15:36:38,773 | INFO | lattice | lattice.nearest_atoms | всего узлов=1331, отобрано=5
+2026-02-11 15:36:38,774 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=5, atoms(used)=5, R_int=2.65 Å, n=5, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:36:38,782 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 377, in update_output_right
+    df = compute_grid_atoms(
+         ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 221, in compute_grid_atoms
+    i1, i2, i3, it = compute_I_components(
+    ^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 4, got 3)
+2026-02-11 15:36:38,883 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=5
+2026-02-11 15:36:38,950 | INFO | lattice | lattice.nearest_atoms | всего узлов=1331, отобрано=5
+2026-02-11 15:36:38,950 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=5, atoms(used)=5, R_int=2.65 Å, n=5, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:36:38,958 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 377, in update_output_right
+    df = compute_grid_atoms(
+         ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 221, in compute_grid_atoms
+    i1, i2, i3, it = compute_I_components(
+    ^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 4, got 3)
+2026-02-11 15:36:39,619 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=5
+2026-02-11 15:36:39,619 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=5
+2026-02-11 15:36:39,690 | INFO | lattice | lattice.nearest_atoms | всего узлов=1331, отобрано=5
+2026-02-11 15:36:39,690 | INFO | __main__ | LEFT | найдено атомов: 5
+2026-02-11 15:36:39,690 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-11 15:36:39,690 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-11 15:36:39,690 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-11 15:38:19,346 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=5
+2026-02-11 15:38:19,416 | INFO | lattice | lattice.nearest_atoms | всего узлов=1331, отобрано=5
+2026-02-11 15:38:19,416 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=5, atoms(used)=5, R_int=2.65 Å, n=5, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:38:19,424 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 377, in update_output_right
+    df = compute_grid_atoms(
+         ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 221, in compute_grid_atoms
+    i1, i2, i3, it = compute_I_components(
+    ^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 4, got 3)
+2026-02-11 15:38:19,526 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=5
+2026-02-11 15:38:19,591 | INFO | lattice | lattice.nearest_atoms | всего узлов=1331, отобрано=5
+2026-02-11 15:38:19,591 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=5, atoms(used)=5, R_int=2.65 Å, n=5, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:38:19,599 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 377, in update_output_right
+    df = compute_grid_atoms(
+         ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 221, in compute_grid_atoms
+    i1, i2, i3, it = compute_I_components(
+    ^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 4, got 3)
+2026-02-11 15:38:26,348 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-11 15:38:26,348 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-11 15:38:26,350 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-11 15:38:26,351 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-11 15:38:26,351 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-11 15:38:26,351 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-11 15:38:26,351 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-11 15:38:26,353 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-11 15:38:26,355 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-11 15:38:26,355 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-02-11 15:38:26,364 | ERROR | __main__ | RIGHT | ошибка при расчёте
+Traceback (most recent call last):
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\main.py", line 377, in update_output_right
+    df = compute_grid_atoms(
+         ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\polarization_part2.py", line 221, in compute_grid_atoms
+    i1, i2, i3, it = compute_I_components(
+    ^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 4, got 3)
+2026-02-11 15:38:49,985 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-02-11 15:38:49,986 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1
+2026-02-11 15:38:49,988 | INFO | lattice | lattice.nearest_atoms | всего узлов=27, отобрано=1
+2026-02-11 15:38:49,988 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-02-11 15:38:49,988 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-11 15:38:49,988 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-11 15:38:49,988 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-02-11 15:38:51,226 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=3
+2026-02-11 15:38:51,227 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=3
+2026-02-11 15:38:51,244 | INFO | lattice | lattice.nearest_atoms | всего узлов=343, отобрано=3
+2026-02-11 15:38:51,244 | INFO | __main__ | LEFT | найдено атомов: 3
+2026-02-11 15:38:51,244 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-02-11 15:38:51,244 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-02-11 15:38:51,245 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
