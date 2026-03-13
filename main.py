@@ -271,16 +271,24 @@ class App(tk.Tk):
         R_bohr = float(self.R_bohr.get())
         alpha = float(self.alpha.get())
         beta = float(self.beta.get())
+        d_layer = int(self.d_layer.get())
         interaction_radius = 5 * R_bohr
         n = int(self.lattice_radius.get())
 
         logger.info(
             "LEFT | a=%.4f Å, R_bohr=%.4f Å, interaction_radius=%.4f Å, "
-            "alpha=%.4f rad, beta=%.4f rad, n=%d",
-            a, R_bohr, interaction_radius, alpha, beta, n
+            "alpha=%.4f rad, beta=%.4f rad, n=%d, d=%d",
+            a, R_bohr, interaction_radius, alpha, beta, n, d_layer
         )
 
-        atoms = nearest_atoms(a, interaction_radius, alpha, beta, n=n)
+        atoms = nearest_atoms(
+            a,
+            interaction_radius,
+            alpha,
+            beta,
+            n=n,
+            d_layer=d_layer
+        )
         logger.info("LEFT | найдено атомов: %d", len(atoms))
 
         matrices, inverses = transition_matrices(L_source=1)
@@ -323,15 +331,22 @@ class App(tk.Tk):
             i3_mode = "sum_avg" if self.i3_mode_sum.get() else "trapz"
 
             # --- параметры геометрии (Часть 1) ---
-            a_lattice = float(self.a.get())  # постоянная решётки (Å)
-            R_bohr = float(self.R_bohr.get())  # радиус Бора (Å)
-            alpha = float(self.alpha.get())  # рад
-            beta = float(self.beta.get())  # рад
-            n = int(self.lattice_radius.get())  # радиус по узлам
-            interaction_radius = 5.0 * R_bohr  # 5 радиусов Бора
+            a_lattice = float(self.a.get())
+            R_bohr = float(self.R_bohr.get())
+            alpha = float(self.alpha.get())
+            beta = float(self.beta.get())
+            d_layer = int(self.d_layer.get())
+            n = int(self.lattice_radius.get())
+            interaction_radius = 5.0 * R_bohr
 
-            # --- атомы и a_list = d_прямой (impact parameter) ---
-            atoms = nearest_atoms(a_lattice, interaction_radius, alpha, beta, n=n)
+            atoms = nearest_atoms(
+                a_lattice,
+                interaction_radius,
+                alpha,
+                beta,
+                n=n,
+                d_layer=d_layer
+            )
 
             # сортировка по d_прямой (ближайшие важнее) + ограничение числа атомов (ускорение)
             atoms_sorted = sorted(atoms, key=lambda it: float(it["distance_to_line"]))

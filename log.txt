@@ -871,3 +871,286 @@ ValueError: not enough values to unpack (expected 4, got 3)
 2026-02-11 15:41:23,433 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260211_154123.csv
 2026-02-11 15:41:23,440 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260211_154123.csv
 2026-02-11 15:41:23,440 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-03-13 19:38:40,206 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-03-13 19:38:40,207 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 19:38:40,210 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 19:38:40,210 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:38:40,229 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:40,229 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:38:40,229 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:40,231 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 19:38:40,233 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 19:38:40,233 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-03-13 19:38:41,375 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-03-13 19:38:41,375 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-0.000311636, max=-3.11636e-06, mean=-6.75637e-05
+2026-03-13 19:38:41,383 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260313_193841.csv
+2026-03-13 19:38:41,386 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260313_193841.csv
+2026-03-13 19:38:41,386 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-03-13 19:38:43,602 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-03-13 19:38:43,602 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 19:38:43,604 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 19:38:43,604 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:38:43,604 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:43,604 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:38:43,604 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:50,290 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=5
+2026-03-13 19:38:50,290 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=5, d=0, s_max=None
+2026-03-13 19:38:50,355 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=1331, отобрано=5
+2026-03-13 19:38:50,355 | INFO | __main__ | LEFT | найдено атомов: 5
+2026-03-13 19:38:50,355 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:50,356 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:38:50,356 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:52,143 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=8
+2026-03-13 19:38:52,144 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=8, d=0, s_max=None
+2026-03-13 19:38:52,372 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=4913, отобрано=8
+2026-03-13 19:38:52,372 | INFO | __main__ | LEFT | найдено атомов: 8
+2026-03-13 19:38:52,372 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:52,372 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:38:52,372 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:54,238 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1
+2026-03-13 19:38:54,238 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 19:38:54,240 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 19:38:54,240 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:38:54,240 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:54,240 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:38:54,240 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:56,799 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=2
+2026-03-13 19:38:56,799 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=2, d=0, s_max=None
+2026-03-13 19:38:56,807 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=125, отобрано=2
+2026-03-13 19:38:56,807 | INFO | __main__ | LEFT | найдено атомов: 2
+2026-03-13 19:38:56,807 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:56,807 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:38:56,807 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:58,406 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=6
+2026-03-13 19:38:58,407 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=6, d=0, s_max=None
+2026-03-13 19:38:58,519 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=2197, отобрано=6
+2026-03-13 19:38:58,520 | INFO | __main__ | LEFT | найдено атомов: 6
+2026-03-13 19:38:58,520 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:38:58,520 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:38:58,520 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:39:02,564 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.0365 rad, beta=1.0000 rad, n=1
+2026-03-13 19:39:02,564 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.0365, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 19:39:02,567 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.0197 0.0307 0.9993], всего узлов=27, отобрано=1
+2026-03-13 19:39:02,567 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:39:02,567 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:39:02,567 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:39:02,567 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:39:04,949 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.0365 rad, beta=0.4974 rad, n=1
+2026-03-13 19:39:04,949 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.0365, beta=0.4974, n=1, d=0, s_max=None
+2026-03-13 19:39:04,951 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.0321 0.0174 0.9993], всего узлов=27, отобрано=1
+2026-03-13 19:39:04,951 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:39:04,951 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:39:04,951 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:39:04,951 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:39:05,603 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.0365 rad, beta=0.4974 rad, n=1
+2026-03-13 19:39:05,603 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.0365, beta=0.4974, n=1, d=0, s_max=None
+2026-03-13 19:39:05,604 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.0321 0.0174 0.9993], всего узлов=27, отобрано=1
+2026-03-13 19:39:05,604 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:39:05,604 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:39:05,605 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:39:05,605 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:44:33,354 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1, d=0
+2026-03-13 19:44:33,354 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 19:44:33,356 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 19:44:33,356 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:44:33,357 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:44:33,357 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:44:33,357 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:44:33,360 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 19:44:33,362 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 19:44:33,362 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-03-13 19:44:34,552 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-03-13 19:44:34,552 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-0.000311636, max=-3.11636e-06, mean=-6.75637e-05
+2026-03-13 19:44:34,556 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260313_194434.csv
+2026-03-13 19:44:34,558 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260313_194434.csv
+2026-03-13 19:44:34,558 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-03-13 19:47:06,078 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1, d=0
+2026-03-13 19:47:06,080 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 19:47:06,082 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 19:47:06,082 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:47:06,082 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:06,082 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:47:06,082 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:08,670 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=3, d=2
+2026-03-13 19:47:08,670 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=3, d=2, s_max=None
+2026-03-13 19:47:08,682 | INFO | lattice | lattice.nearest_atoms | origin=[0.  0.  9.5], dir=[0.259  0.4034 0.8776], всего узлов=343, отобрано=1
+2026-03-13 19:47:08,683 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:47:08,683 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:08,683 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:47:08,683 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:09,807 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=3, d=2, s_max=None
+2026-03-13 19:47:09,820 | INFO | lattice | lattice.nearest_atoms | origin=[0.  0.  9.5], dir=[0.259  0.4034 0.8776], всего узлов=343, отобрано=1
+2026-03-13 19:47:09,820 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=3, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-03-13 19:47:10,950 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-03-13 19:47:10,950 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-0.000311636, max=-3.11636e-06, mean=-6.75637e-05
+2026-03-13 19:47:10,952 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260313_194710.csv
+2026-03-13 19:47:10,954 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260313_194710.csv
+2026-03-13 19:47:10,954 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-03-13 19:47:11,074 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=3, d=2
+2026-03-13 19:47:11,076 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=3, d=2, s_max=None
+2026-03-13 19:47:11,088 | INFO | lattice | lattice.nearest_atoms | origin=[0.  0.  9.5], dir=[0.259  0.4034 0.8776], всего узлов=343, отобрано=1
+2026-03-13 19:47:11,088 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:47:11,088 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:11,088 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:47:11,088 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:12,063 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=3, d=2
+2026-03-13 19:47:12,063 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=3, d=2, s_max=None
+2026-03-13 19:47:12,077 | INFO | lattice | lattice.nearest_atoms | origin=[0.  0.  9.5], dir=[0.259  0.4034 0.8776], всего узлов=343, отобрано=1
+2026-03-13 19:47:12,077 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:47:12,077 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:12,077 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:47:12,077 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:14,367 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1, d=0
+2026-03-13 19:47:14,367 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 19:47:14,370 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 19:47:14,370 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:47:14,370 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:14,370 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:47:14,370 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:15,755 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=3, d=2
+2026-03-13 19:47:15,755 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=3, d=2, s_max=None
+2026-03-13 19:47:15,768 | INFO | lattice | lattice.nearest_atoms | origin=[0.  0.  9.5], dir=[0.259  0.4034 0.8776], всего узлов=343, отобрано=1
+2026-03-13 19:47:15,768 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:47:15,768 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:15,768 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:47:15,768 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:17,758 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=4, d=2
+2026-03-13 19:47:17,758 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=4, d=2, s_max=None
+2026-03-13 19:47:17,786 | INFO | lattice | lattice.nearest_atoms | origin=[0.  0.  9.5], dir=[0.259  0.4034 0.8776], всего узлов=729, отобрано=2
+2026-03-13 19:47:17,786 | INFO | __main__ | LEFT | найдено атомов: 2
+2026-03-13 19:47:17,786 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:17,786 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:47:17,786 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:20,640 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=6, d=2
+2026-03-13 19:47:20,640 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=6, d=2, s_max=None
+2026-03-13 19:47:20,846 | INFO | lattice | lattice.nearest_atoms | origin=[0.  0.  9.5], dir=[0.259  0.4034 0.8776], всего узлов=2197, отобрано=4
+2026-03-13 19:47:20,846 | INFO | __main__ | LEFT | найдено атомов: 4
+2026-03-13 19:47:20,846 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:20,846 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:47:20,846 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:24,761 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.1663 Å, interaction_radius=0.8314 Å, alpha=0.5000 rad, beta=1.0000 rad, n=3, d=2
+2026-03-13 19:47:24,761 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=0.8314, alpha=0.5000, beta=1.0000, n=3, d=2, s_max=None
+2026-03-13 19:47:24,774 | INFO | lattice | lattice.nearest_atoms | origin=[0.  0.  9.5], dir=[0.259  0.4034 0.8776], всего узлов=343, отобрано=0
+2026-03-13 19:47:24,774 | INFO | __main__ | LEFT | найдено атомов: 0
+2026-03-13 19:47:24,774 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:24,774 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:47:24,774 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:27,412 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.1663 Å, interaction_radius=0.8314 Å, alpha=0.1412 rad, beta=1.0000 rad, n=3, d=2
+2026-03-13 19:47:27,412 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=0.8314, alpha=0.1412, beta=1.0000, n=3, d=2, s_max=None
+2026-03-13 19:47:27,428 | INFO | lattice | lattice.nearest_atoms | origin=[0.  0.  9.5], dir=[0.076  0.1184 0.99  ], всего узлов=343, отобрано=1
+2026-03-13 19:47:27,428 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 19:47:27,428 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 19:47:27,428 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 19:47:27,428 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 20:08:39,888 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1, d=0
+2026-03-13 20:08:39,888 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 20:08:39,890 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 20:08:39,890 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 20:08:39,891 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 20:08:39,891 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 20:08:39,891 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 20:08:39,893 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 20:08:39,895 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 20:08:39,895 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-03-13 20:08:41,041 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-03-13 20:08:41,042 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-0.000311636, max=-3.11636e-06, mean=-6.75637e-05
+2026-03-13 20:08:41,048 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260313_200841.csv
+2026-03-13 20:08:41,051 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260313_200841.csv
+2026-03-13 20:08:41,051 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-03-13 20:19:23,627 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1, d=0
+2026-03-13 20:19:23,628 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 20:19:23,629 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 20:19:23,629 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 20:19:23,630 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 20:19:23,630 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 20:19:23,630 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 20:19:23,631 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 20:19:23,633 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 20:19:23,633 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-03-13 20:19:24,737 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-03-13 20:19:24,737 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-0.000311636, max=-3.11636e-06, mean=-6.75637e-05
+2026-03-13 20:19:24,742 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260313_201924.csv
+2026-03-13 20:19:24,745 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260313_201924.csv
+2026-03-13 20:19:24,745 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-03-13 20:22:43,737 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1, d=0
+2026-03-13 20:22:43,738 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 20:22:43,740 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 20:22:43,740 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 20:22:43,740 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 20:22:43,741 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 20:22:43,741 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 20:22:43,742 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 20:22:43,744 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 20:22:43,744 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-03-13 20:22:44,851 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-03-13 20:22:44,851 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-0.000311636, max=-3.11636e-06, mean=-6.75637e-05
+2026-03-13 20:22:44,856 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260313_202244.csv
+2026-03-13 20:22:44,859 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260313_202244.csv
+2026-03-13 20:22:44,859 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-03-13 20:22:48,115 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1, d=0
+2026-03-13 20:22:48,115 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 20:22:48,117 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 20:22:48,117 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 20:22:48,117 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 20:22:48,118 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 20:22:48,118 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 20:22:50,216 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=2, d=0
+2026-03-13 20:22:50,217 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=2, d=0, s_max=None
+2026-03-13 20:22:50,223 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=125, отобрано=2
+2026-03-13 20:22:50,223 | INFO | __main__ | LEFT | найдено атомов: 2
+2026-03-13 20:22:50,224 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 20:22:50,224 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 20:22:50,224 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 20:22:51,116 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=2, d=0, s_max=None
+2026-03-13 20:22:51,123 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=125, отобрано=2
+2026-03-13 20:22:51,123 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=2, atoms(used)=2, R_int=2.65 Å, n=2, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-03-13 20:22:53,452 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=2, i3_mode=sum_avg
+2026-03-13 20:22:53,452 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-0.0016485, max=-1.6485e-05, mean=-0.000357401
+2026-03-13 20:22:53,455 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260313_202253.csv
+2026-03-13 20:22:53,458 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260313_202253.csv
+2026-03-13 20:22:53,458 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-03-13 20:23:57,471 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1, d=0
+2026-03-13 20:23:57,471 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 20:23:57,473 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 20:23:57,473 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 20:23:57,474 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 20:23:57,474 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 20:23:57,474 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 20:23:57,475 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 20:23:57,477 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 20:23:57,477 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-03-13 20:23:58,667 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-03-13 20:23:58,668 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-0.000311636, max=-3.11636e-06, mean=-6.75637e-05
+2026-03-13 20:23:58,673 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260313_202358.csv
+2026-03-13 20:23:58,675 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260313_202358.csv
+2026-03-13 20:23:58,675 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-03-13 20:26:09,251 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1, d=0
+2026-03-13 20:26:09,252 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 20:26:09,254 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 20:26:09,254 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-13 20:26:09,254 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-13 20:26:09,254 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-13 20:26:09,254 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-13 20:26:09,256 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-13 20:26:09,258 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-13 20:26:09,258 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-03-13 20:26:10,414 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-03-13 20:26:10,415 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-0.000311636, max=-3.11636e-06, mean=-6.75637e-05
+2026-03-13 20:26:10,420 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260313_202610.csv
+2026-03-13 20:26:10,423 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260313_202610.csv
+2026-03-13 20:26:10,423 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек
+2026-03-14 01:43:42,490 | INFO | __main__ | LEFT | a=4.7500 Å, R_bohr=0.5300 Å, interaction_radius=2.6500 Å, alpha=0.5000 rad, beta=1.0000 rad, n=1, d=0
+2026-03-14 01:43:42,491 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-14 01:43:42,495 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-14 01:43:42,496 | INFO | __main__ | LEFT | найдено атомов: 1
+2026-03-14 01:43:42,502 | INFO | __main__ | LEFT | D(Ln=-1), det=8.164966e-01, invertible=True
+2026-03-14 01:43:42,502 | INFO | __main__ | LEFT | D(Ln=0), det=9.428090e-01, invertible=True
+2026-03-14 01:43:42,502 | INFO | __main__ | LEFT | D(Ln=1), det=8.164966e-01, invertible=True
+2026-03-14 01:43:42,505 | INFO | lattice | lattice.nearest_atoms | a=4.7500, R_int=2.6500, alpha=0.5000, beta=1.0000, n=1, d=0, s_max=None
+2026-03-14 01:43:42,515 | INFO | lattice | lattice.nearest_atoms | origin=[0. 0. 0.], dir=[0.259  0.4034 0.8776], всего узлов=27, отобрано=1
+2026-03-14 01:43:42,516 | INFO | __main__ | RIGHT | Emin=10 eV, Emax=1e+05 eV, N=160, Z=29, lattice_a=4.75 Å, b=0.53 Å, c1=1, c2=1, dr=0.01 Å, rmax=15 Å, atoms(all)=1, atoms(used)=1, R_int=2.65 Å, n=1, alpha=0.5 rad, beta=1 rad, eps_a=0.0001
+2026-03-14 01:43:44,513 | INFO | polarization_part2 | compute_grid_atoms | Emin=10 eV, Emax=1e+05 eV, N=160, atoms=1, i3_mode=sum_avg
+2026-03-14 01:43:44,513 | INFO | polarization_part2 | compute_grid_atoms | Phi stats: min=-0.000311636, max=-3.11636e-06, mean=-6.75637e-05
+2026-03-14 01:43:44,522 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi matrix: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_matrix_20260314_014344.csv
+2026-03-14 01:43:44,526 | INFO | polarization_part2 | compute_grid_atoms | saved per-atom Phi long: C:\Users\FossW\PycharmProjects\Михаил Цедилин.Построение графиков поляризации\data\phi_atoms_long_20260314_014344.csv
+2026-03-14 01:43:44,526 | INFO | __main__ | RIGHT | сетка рассчитана: 160 точек

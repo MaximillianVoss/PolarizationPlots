@@ -26,36 +26,68 @@ def distance_point_to_line(point, line_point, line_dir):
     return np.linalg.norm(np.cross(point - line_point, line_dir)) / np.linalg.norm(line_dir)
 
 
-def nearest_atoms(a, interaction_radius, alpha, beta, n=3):
-    """Возвращает атомы в пределах interaction_radius от прямой движения."""
+def nearest_atoms(a, interaction_radius, alpha, beta, n=3, d_layer=0, max_longitudinal=None):
+    """
+    Возвращает атомы в пределах interaction_radius от луча движения.
+
+    Параметры:
+    ----------
+    a : float
+        Постоянная решётки (Å).
+    interaction_radius : float
+        Радиус взаимодействия вокруг траектории (Å).
+    alpha, beta : float
+        Углы направления траектории в радианах.
+    n : int
+        Размер куба решётки: [-n..n]^3.
+    d_layer : int
+        Слой источника по оси z. Старт электрона: (0, 0, d_layer * a).
+    max_longitudinal : float | None
+        Максимальная длина вдоль траектории, до которой учитываем атомы.
+        Если None, берём весь луч внутри построенного куба.
+    """
     logger.info(
-        "lattice.nearest_atoms | a=%.4f, R_int=%.4f, alpha=%.4f, beta=%.4f, n=%d",
-        a, interaction_radius, alpha, beta, n
+        "lattice.nearest_atoms | a=%.4f, R_int=%.4f, alpha=%.4f, beta=%.4f, n=%d, d=%d, s_max=%s",
+        a, interaction_radius, alpha, beta, n, d_layer,
+        "None" if max_longitudinal is None else f"{max_longitudinal:.4f}"
     )
 
-    origin = np.zeros(3)
+    origin = np.array([0.0, 0.0, float(d_layer) * a], dtype=float)
+
     dir_vec = spherical_to_cartesian(alpha, beta)
-    dir_norm = dir_vec / np.linalg.norm(dir_vec)
+    dir_norm = np.linalg.norm(dir_vec)
+    if dir_norm <= 1e-15:
+        raise ValueError("Направляющий вектор траектории имеет почти нулевую длину.")
+
+    dir_unit = dir_vec / dir_norm
     atoms = generate_lattice(a, n=n)
 
     results = []
     for atom in atoms:
+        # пропускаем атом в точке старта, если совпал
         if np.allclose(atom, origin):
             continue
 
         displacement = atom - origin
-        longitudinal = np.dot(displacement, dir_norm)
-        if longitudinal < 0:
+        longitudinal = float(np.dot(displacement, dir_unit))
+
+        # оставляем только атомы впереди по направлению движения
+        if longitudinal < 0.0:
             continue
 
-        dist_to_line = distance_point_to_line(atom, origin, dir_vec)
+        # если задано ограничение по длине пролёта — учитываем
+        if max_longitudinal is not None and longitudinal > max_longitudinal:
+            continue
+
+        # расстояние от атома до луча
+        dist_to_line = np.linalg.norm(np.cross(displacement, dir_unit))
+
         if dist_to_line <= interaction_radius:
-            distance_to_origin = np.linalg.norm(displacement)
             results.append(
                 {
                     "coords": atom,
-                    "distance_to_line": dist_to_line,
-                    "distance_to_origin": distance_to_origin,
+                    "distance_to_line": float(dist_to_line),
+                    "distance_to_origin": float(np.linalg.norm(displacement)),
                     "longitudinal_distance": longitudinal,
                 }
             )
@@ -63,7 +95,9 @@ def nearest_atoms(a, interaction_radius, alpha, beta, n=3):
     results.sort(key=lambda item: item["longitudinal_distance"])
 
     logger.info(
-        "lattice.nearest_atoms | всего узлов=%d, отобрано=%d",
+        "lattice.nearest_atoms | origin=%s, dir=%s, всего узлов=%d, отобрано=%d",
+        np.array2string(origin, precision=4, suppress_small=True),
+        np.array2string(dir_unit, precision=4, suppress_small=True),
         len(atoms), len(results)
     )
 
