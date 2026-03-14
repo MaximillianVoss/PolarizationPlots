@@ -120,8 +120,8 @@ def compute_I_components(
     f1 = term / np.power(r, 2.5) * chi_r_32
     f2 = term / np.power(r, 4.0) * chi_r
 
-    I1_int = np.trapz(f1, r)
-    I2_int = np.trapz(f2, r)
+    I1_int = np.trapezoid(f1, r)
+    I2_int = np.trapezoid(f2, r)
 
     # I3
     if i3_mode == "trapz":
@@ -132,7 +132,7 @@ def compute_I_components(
         chi_shift = np.clip(chi_shift, 0.0, None)
 
         f3 = term / np.power(r, 3.0) * (chi_shift - chi_r)
-        I3_int = np.trapz(f3, r)
+        I3_int = np.trapezoid(f3, r)
 
     elif i3_mode == "sum_avg":
         p = 0.0
@@ -199,90 +199,75 @@ def compute_grid_atoms(
     if any(a <= 0 for a in a_list_ang):
         raise ValueError("В a_list_ang найдены некорректные значения (<=0).")
 
-    E = np.logspace(np.log10(Emin_eV), np.log10(Emax_eV), int(N))
-    V = energy_eV_to_speed_mps(E)
-
-    a_arr = np.asarray(a_list_ang, dtype=float)
-
-    # ограничим число атомов (и для скорости, и для сохранения)
-    if a_arr.size > int(max_atoms_dump):
-        a_arr = np.sort(a_arr)[:int(max_atoms_dump)]
-    else:
-        a_arr = np.sort(a_arr)
-
-    I1, I2, I3, It = [], [], [], []
-
-    # матрицы вкладов по атомам (по желанию)
-    Phi_atoms = np.empty((len(E), len(a_arr)), dtype=float) if dump_atom_phi_csv else None
-
-    for iE, v in enumerate(V):
-        s1 = s2 = s3 = st = 0.0
-
-        for jA, a_imp in enumerate(a_arr):
-            i1, i2, i3, it = compute_I_components(
-                float(v),
-                Z=Z, a_ang=float(a_imp), b_ang=b_ang, c1=c1, c2=c2,
-                dr_ang=dr_ang, r_max_ang=r_max_ang,
-                chi=chi, chi_params=chi_params, i3_mode=i3_mode
-            )
-            s1 += i1; s2 += i2; s3 += i3; st += it
-
-            if Phi_atoms is not None:
-                Phi_atoms[iE, jA] = float(it)  # вклад k-го атома в Φ(E)
-
-        I1.append(s1); I2.append(s2); I3.append(s3); It.append(st)
-
-    logger.info(
-        "compute_grid_atoms | Emin=%.3g eV, Emax=%.3g eV, N=%d, atoms=%d, i3_mode=%s",
-        Emin_eV, Emax_eV, int(N), int(len(a_arr)), i3_mode
+    df_sum, phi_atoms, a_arr = _compute_grid_atoms_core(
+        Emin_eV=Emin_eV,
+        Emax_eV=Emax_eV,
+        N=N,
+        a_list_ang=a_list_ang,
+        Z=Z,
+        b_ang=b_ang,
+        c1=c1,
+        c2=c2,
+        dr_ang=dr_ang,
+        r_max_ang=r_max_ang,
+        chi=chi,
+        chi_params=chi_params,
+        i3_mode=i3_mode,
+        max_atoms_dump=max_atoms_dump,
+        include_phi_matrix=dump_atom_phi_csv,
     )
 
-    phi = np.asarray(It, dtype=float)
-    logger.info(
-        "compute_grid_atoms | Phi stats: min=%.6g, max=%.6g, mean=%.6g",
-        float(phi.min()), float(phi.max()), float(phi.mean())
-    )
-
-    df_sum = pd.DataFrame({
-        "E_eV": E,
-        "V_m_per_s": V,
-        "I1": np.asarray(I1, dtype=float),
-        "I2": np.asarray(I2, dtype=float),
-        "I3": np.asarray(I3, dtype=float),
-        "Phi": phi,
-    })
-
-    # --- сохранение промежуточных Φ_k(E) ---
-    if dump_atom_phi_csv and Phi_atoms is not None:
-        try:
-            os.makedirs("data", exist_ok=True)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-            # (1) "широкий" формат: одна строка = энергия, колонки = атомы (a_k)
-            cols = ["E_eV"] + [f"a_{k}_A={a_arr[k]:.6g}" for k in range(len(a_arr))]
-            wide = np.column_stack([E, Phi_atoms])
-            df_wide = pd.DataFrame(wide, columns=cols)
-            path_wide = os.path.join("data", f"phi_atoms_matrix_{ts}.csv")
-            df_wide.to_csv(path_wide, index=False, encoding="utf-8")
-            logger.info("compute_grid_atoms | saved per-atom Phi matrix: %s", os.path.abspath(path_wide))
-
-            # (2) "длинный" формат: удобно фильтровать/группировать
-            # E_i, atom_idx, a, Phi_atom
-            df_long = pd.DataFrame({
-                "E_eV": np.repeat(E, len(a_arr)),
-                "atom_idx": np.tile(np.arange(len(a_arr)), len(E)),
-                "a_ang": np.tile(a_arr, len(E)),
-                "Phi_atom": Phi_atoms.reshape(-1),
-            })
-            path_long = os.path.join("data", f"phi_atoms_long_{ts}.csv")
-            df_long.to_csv(path_long, index=False, encoding="utf-8")
-            logger.info("compute_grid_atoms | saved per-atom Phi long: %s", os.path.abspath(path_long))
-
-        except Exception:
-            logger.exception("compute_grid_atoms | failed to save per-atom Phi CSV")
+    if dump_atom_phi_csv and phi_atoms is not None:
+        _dump_phi_atoms_csv(
+            E=df_sum["E_eV"].to_numpy(dtype=float),
+            a_arr=a_arr,
+            phi_atoms=phi_atoms,
+        )
 
     return df_sum
 
+def compute_grid_atoms_with_phi_matrix(
+    Emin_eV: float,
+    Emax_eV: float,
+    N: int,
+    *,
+    a_list_ang: list[float],
+    Z: float,
+    b_ang: float,
+    c1: float,
+    c2: float,
+    dr_ang: float,
+    r_max_ang: float,
+    chi=chi_table_interp,
+    chi_params=None,
+    i3_mode: str = "sum_avg",
+    dump_atom_phi_csv: bool = True,
+    max_atoms_dump: int = 200,
+):
+    df_sum, phi_atoms, a_arr = _compute_grid_atoms_core(
+        Emin_eV=Emin_eV,
+        Emax_eV=Emax_eV,
+        N=N,
+        a_list_ang=a_list_ang,
+        Z=Z,
+        b_ang=b_ang,
+        c1=c1,
+        c2=c2,
+        dr_ang=dr_ang,
+        r_max_ang=r_max_ang,
+        chi=chi,
+        chi_params=chi_params,
+        i3_mode=i3_mode,
+        max_atoms_dump=max_atoms_dump,
+        include_phi_matrix=True,
+    )
+    if dump_atom_phi_csv and phi_atoms is not None:
+        _dump_phi_atoms_csv(
+            E=df_sum["E_eV"].to_numpy(dtype=float),
+            a_arr=a_arr,
+            phi_atoms=phi_atoms,
+        )
+    return df_sum, phi_atoms, a_arr
 
 
 def compute_grid(
@@ -396,8 +381,8 @@ def spin_amplitudes_both(
     D = np.asarray(D, dtype=complex)
     Dinv = np.linalg.inv(D)
 
-    ket_up = np.array([0.5+0j, 0.0+0j])
-    ket_dn = np.array([0.0+0j, 0.5+0j])
+    ket_up = np.array([1.0 + 0j, 0.0 + 0j], dtype=complex)
+    ket_dn = np.array([0.0 + 0j, 1.0 + 0j], dtype=complex)
 
     Phi = np.asarray(Phi, dtype=float)
 
@@ -407,15 +392,9 @@ def spin_amplitudes_both(
     P_dn_from_down = np.empty_like(Phi, dtype=float)
 
     for i, phi in enumerate(Phi):
-        # Фазовая матрица (комплексная)
-        U = np.array([
-            [np.exp(1j * L_atom * phi),            0.0+0j],
-            [0.0+0j, np.exp(-1j * (L_atom + 1) * phi)]
-        ], dtype=complex)
-
-        # ψ_out = 2 * D^{-1} * U * D * |ψ_in>
-        amp_up   = 2.0 * (Dinv @ (U @ (D @ ket_up)))
-        amp_down = 2.0 * (Dinv @ (U @ (D @ ket_dn)))
+        U = _phase_matrix(float(phi), int(L_atom))
+        amp_up = Dinv @ (U @ (D @ ket_up))
+        amp_down = Dinv @ (U @ (D @ ket_dn))
 
         # Вероятности: сначала модуль, потом квадрат
         P_up_from_up[i]   = np.abs(amp_up[0])**2
@@ -431,3 +410,188 @@ def spin_amplitudes_both(
         "sum_check_dn":  P_up_from_down + P_dn_from_down,
         "spin_mean_dn":  P_up_from_down - P_dn_from_down,
     }
+
+def spin_amplitudes_both_chain(
+    E: np.ndarray,
+    Phi_atoms: np.ndarray,         # shape = [len(E), n_atoms]
+    D_chain: list[np.ndarray],     # список D_i для атомов
+    L_atom,
+):
+    """
+    Вариант 2:
+    ψ_out(E) = M_n(E) ... M_2(E) M_1(E) ψ_in,
+    где M_i(E) = D_i^{-1} U_i(E) D_i.
+
+    Для обратной совместимости L_atom может быть либо одним целым L,
+    либо списком L_i по атомам.
+    """
+
+    E = np.asarray(E, dtype=float)
+    Phi_atoms = np.asarray(Phi_atoms, dtype=float)
+
+    ket_up = np.array([1.0 + 0j, 0.0 + 0j], dtype=complex)
+    ket_dn = np.array([0.0 + 0j, 1.0 + 0j], dtype=complex)
+
+    if Phi_atoms.ndim != 2:
+        raise ValueError("Phi_atoms должен быть матрицей формы [энергия, атом].")
+    if Phi_atoms.shape[1] != len(D_chain):
+        raise ValueError("Число матриц D_i должно совпадать с числом атомов в Phi_atoms.")
+
+    if np.isscalar(L_atom):
+        l_atom_chain = None
+        fixed_l_atom = int(L_atom)
+    else:
+        l_atom_chain = [int(value) for value in L_atom]
+        fixed_l_atom = None
+        if len(l_atom_chain) != len(D_chain):
+            raise ValueError("Список L_i должен совпадать по длине с D_chain.")
+
+    P_up_from_up   = np.empty(len(E), dtype=float)
+    P_dn_from_up   = np.empty(len(E), dtype=float)
+    P_up_from_down = np.empty(len(E), dtype=float)
+    P_dn_from_down = np.empty(len(E), dtype=float)
+
+    Dinv_chain = [np.linalg.inv(np.asarray(D, dtype=complex)) for D in D_chain]
+    D_chain_c = [np.asarray(D, dtype=complex) for D in D_chain]
+
+    for iE in range(len(E)):
+        psi_up = ket_up.copy()
+        psi_dn = ket_dn.copy()
+
+        for j, phi in enumerate(Phi_atoms[iE]):
+            D = D_chain_c[j]
+            Dinv = Dinv_chain[j]
+            current_l = fixed_l_atom if l_atom_chain is None else l_atom_chain[j]
+            U = _phase_matrix(float(phi), current_l)
+
+            M = Dinv @ U @ D
+            psi_up = M @ psi_up
+            psi_dn = M @ psi_dn
+
+        P_up_from_up[iE]   = np.abs(psi_up[0]) ** 2
+        P_dn_from_up[iE]   = np.abs(psi_up[1]) ** 2
+        P_up_from_down[iE] = np.abs(psi_dn[0]) ** 2
+        P_dn_from_down[iE] = np.abs(psi_dn[1]) ** 2
+
+    return {
+        "sum_check_up":  P_up_from_up + P_dn_from_up,
+        "spin_mean_up":  P_up_from_up - P_dn_from_up,
+        "sum_check_dn":  P_up_from_down + P_dn_from_down,
+        "spin_mean_dn":  P_up_from_down - P_dn_from_down,
+    }
+
+
+def _compute_grid_atoms_core(
+    *,
+    Emin_eV: float,
+    Emax_eV: float,
+    N: int,
+    a_list_ang: list[float],
+    Z: float,
+    b_ang: float,
+    c1: float,
+    c2: float,
+    dr_ang: float,
+    r_max_ang: float,
+    chi,
+    chi_params,
+    i3_mode: str,
+    max_atoms_dump: int,
+    include_phi_matrix: bool,
+) -> tuple[pd.DataFrame, np.ndarray | None, np.ndarray]:
+    if Emin_eV <= 0 or Emax_eV <= 0 or Emax_eV <= Emin_eV:
+        raise ValueError("Требуется 0 < Emin < Emax.")
+    if not a_list_ang:
+        raise ValueError("Список a_list_ang пуст: нет атомов для суммирования.")
+    if any(a <= 0 for a in a_list_ang):
+        raise ValueError("В a_list_ang найдены некорректные значения (<=0).")
+
+    E = np.logspace(np.log10(Emin_eV), np.log10(Emax_eV), int(N))
+    V = energy_eV_to_speed_mps(E)
+
+    a_arr = np.asarray(a_list_ang, dtype=float)
+    if a_arr.size > int(max_atoms_dump):
+        a_arr = np.sort(a_arr)[:int(max_atoms_dump)]
+    else:
+        a_arr = np.sort(a_arr)
+
+    I1, I2, I3, It = [], [], [], []
+    phi_atoms = np.empty((len(E), len(a_arr)), dtype=float) if include_phi_matrix else None
+
+    for iE, v in enumerate(V):
+        s1 = s2 = s3 = st = 0.0
+
+        for jA, a_imp in enumerate(a_arr):
+            i1, i2, i3, it = compute_I_components(
+                float(v),
+                Z=Z, a_ang=float(a_imp), b_ang=b_ang, c1=c1, c2=c2,
+                dr_ang=dr_ang, r_max_ang=r_max_ang,
+                chi=chi, chi_params=chi_params, i3_mode=i3_mode
+            )
+            s1 += i1
+            s2 += i2
+            s3 += i3
+            st += it
+
+            if phi_atoms is not None:
+                phi_atoms[iE, jA] = float(it)
+
+        I1.append(s1)
+        I2.append(s2)
+        I3.append(s3)
+        It.append(st)
+
+    phi = np.asarray(It, dtype=float)
+    logger.info(
+        "compute_grid_atoms | Emin=%.3g eV, Emax=%.3g eV, N=%d, atoms=%d, i3_mode=%s",
+        Emin_eV, Emax_eV, int(N), int(len(a_arr)), i3_mode
+    )
+    logger.info(
+        "compute_grid_atoms | Phi stats: min=%.6g, max=%.6g, mean=%.6g",
+        float(phi.min()), float(phi.max()), float(phi.mean())
+    )
+
+    return (
+        pd.DataFrame({
+            "E_eV": E,
+            "V_m_per_s": V,
+            "I1": np.asarray(I1, dtype=float),
+            "I2": np.asarray(I2, dtype=float),
+            "I3": np.asarray(I3, dtype=float),
+            "Phi": phi,
+        }),
+        phi_atoms,
+        a_arr,
+    )
+
+
+def _dump_phi_atoms_csv(E: np.ndarray, a_arr: np.ndarray, phi_atoms: np.ndarray) -> None:
+    try:
+        os.makedirs("data", exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        cols = ["E_eV"] + [f"a_{k}_A={a_arr[k]:.6g}" for k in range(len(a_arr))]
+        wide = np.column_stack([E, phi_atoms])
+        df_wide = pd.DataFrame(wide, columns=cols)
+        path_wide = os.path.join("data", f"phi_atoms_matrix_{ts}.csv")
+        df_wide.to_csv(path_wide, index=False, encoding="utf-8")
+        logger.info("compute_grid_atoms | saved per-atom Phi matrix: %s", os.path.abspath(path_wide))
+
+        df_long = pd.DataFrame({
+            "E_eV": np.repeat(E, len(a_arr)),
+            "atom_idx": np.tile(np.arange(len(a_arr)), len(E)),
+            "a_ang": np.tile(a_arr, len(E)),
+            "Phi_atom": phi_atoms.reshape(-1),
+        })
+        path_long = os.path.join("data", f"phi_atoms_long_{ts}.csv")
+        df_long.to_csv(path_long, index=False, encoding="utf-8")
+        logger.info("compute_grid_atoms | saved per-atom Phi long: %s", os.path.abspath(path_long))
+    except Exception:
+        logger.exception("compute_grid_atoms | failed to save per-atom Phi CSV")
+
+
+def _phase_matrix(phi: float, L_atom: int) -> np.ndarray:
+    return np.array([
+        [np.exp(1j * L_atom * phi), 0.0 + 0j],
+        [0.0 + 0j, np.exp(-1j * (L_atom + 1) * phi)]
+    ], dtype=complex)
