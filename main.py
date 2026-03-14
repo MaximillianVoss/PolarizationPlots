@@ -2,19 +2,17 @@
 import tkinter as tk
 from tkinter import ttk
 import numpy as np
-import os
-from datetime import datetime
 
 from lattice import nearest_atoms, compute_lattice_n_auto
 from transitions import transition_matrices
-from polarization_part2 import (
-    compute_grid,
-    compute_grid_atoms,
-    chi_table_interp,
-    chi_default,
-    spin_amplitudes_both,  # обе подготовки спина
+from polarization_part2 import chi_table_interp, chi_default
+from formula_variants import (
+    FORMULA_BY_LABEL,
+    FORMULA_LABELS,
+    FORMULA_LEGACY,
+    PhaseGridParams,
+    run_formula_variant,
 )
-from polarization_part2 import compute_grid_atoms
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
@@ -44,10 +42,11 @@ class App(tk.Tk):
         # Параметры решётки/геометрии
         self.a = tk.DoubleVar(value=4.75)
         self.R_bohr = tk.DoubleVar(value=0.53)
-        self.alpha = tk.DoubleVar(value=0.5)
-        self.beta = tk.DoubleVar(value=1.0)
+        self.alpha_deg = tk.DoubleVar(value=30.0)
+        self.beta_deg = tk.DoubleVar(value=60.0)
         self.lattice_radius = tk.IntVar(value=3)   # n
         self.d_layer = tk.IntVar(value=0)          # слой источника d
+        self.orbital_l = tk.IntVar(value=1)        # орбитальное число L
         self.auto_n = tk.BooleanVar(value=True)    # автоподбор n
 
         row = 0
@@ -55,14 +54,17 @@ class App(tk.Tk):
                           description="Расстояние между узлами решётки"); row += 1
         self._make_slider(left, "Радиус Бора R_bohr (Å)", self.R_bohr, 0.1, 2.0, row,
                           description="Радиус взаимодействия (×5 для поиска атомов)"); row += 1
-        self._make_slider(left, "Полярный угол α (рад)", self.alpha, 0, np.pi, row,
+        self._make_slider(left, "Полярный угол α (°)", self.alpha_deg, -90, 90, row,
                           description="Угол между направлением электрона и осью z"); row += 1
-        self._make_slider(left, "Азимутальный угол β (рад)", self.beta, 0, np.pi, row,
+        self._make_slider(left, "Азимутальный угол β (°)", self.beta_deg, -90, 90, row,
                           description="Угол разворота направления вокруг оси z"); row += 1
         self._make_slider(left, "Размер решётки n", self.lattice_radius, 1, 20, row,
                           description="Число периодов по каждой оси", resolution=1); row += 1
         self._make_slider(left, "Слой источника d", self.d_layer, 0, 20, row,
                           description="Номер слоя, откуда вылетает электрон", resolution=1); row += 1
+        self._make_slider(left, "Орбитальное число L", self.orbital_l, 1, 10, row,
+                          description="L участвует в фазовой матрице, Lz выбирает матрицу D", resolution=1); row += 1
+
 
         ttk.Checkbutton(left, text="Автовыбор n по углам/слою",
                         variable=self.auto_n, command=self._recompute_n)\
@@ -104,6 +106,19 @@ class App(tk.Tk):
         self._make_slider(right, "Emin (эВ)", self.Emin, 1.0, 1000.0, row_r); row_r += 1
         self._make_slider(right, "Emax (эВ)", self.Emax, 1000.0, 200000.0, row_r); row_r += 1
         self._make_slider(right, "N точек", self.Npts, 20, 600, row_r, resolution=1); row_r += 1
+        self.formula_variant_label = tk.StringVar(value=FORMULA_LABELS[FORMULA_LEGACY])
+
+        ttk.Label(right, text="Вариант расчёта").grid(row=row_r, column=0, sticky="w")
+        formula_box = ttk.Combobox(
+            right,
+            textvariable=self.formula_variant_label,
+            values=list(FORMULA_LABELS.values()),
+            state="readonly",
+            width=32
+        )
+        formula_box.grid(row=row_r, column=1, columnspan=2, sticky="ew", padx=4)
+        formula_box.bind("<<ComboboxSelected>>", lambda *_: self.update_output_right())
+        row_r += 1
 
         ttk.Checkbutton(right, text="Автопересчёт при движении ползунков",
                         variable=self.auto).grid(row=row_r, column=0, columnspan=3, sticky="w"); row_r += 1
@@ -148,8 +163,9 @@ class App(tk.Tk):
         self._default_view_limits = None
 
         # Автопересчёт n при изменении геометрии
-        for v in (self.a, self.R_bohr, self.alpha, self.beta, self.d_layer):
+        for v in (self.a, self.R_bohr, self.alpha_deg, self.beta_deg, self.d_layer):
             v.trace_add("write", lambda *_: self._recompute_n())
+        self.orbital_l.trace_add("write", lambda *_: self._on_orbital_l_changed())
 
         # Первый запуск
         self._recompute_n()
@@ -246,6 +262,53 @@ class App(tk.Tk):
         val_lbl.grid(row=0, column=2, rowspan=2, sticky="e")
         var.trace_add("write", lambda *_: val_lbl.config(text=format_value(var.get())))
 
+    def _alpha_rad(self):
+        return float(np.deg2rad(self.alpha_deg.get()))
+
+    def _beta_rad(self):
+        return float(np.deg2rad(self.beta_deg.get()))
+
+    def _selected_formula_variant(self):
+        return FORMULA_BY_LABEL[self.formula_variant_label.get()]
+
+    def _on_orbital_l_changed(self):
+        self.update_output_left()
+        if hasattr(self, "auto") and self.auto.get():
+            self.update_output_right()
+
+    def _geometry_context(self):
+        return {
+            "a_lattice": float(self.a.get()),
+            "R_bohr": float(self.R_bohr.get()),
+            "alpha_deg": float(self.alpha_deg.get()),
+            "beta_deg": float(self.beta_deg.get()),
+            "alpha_rad": self._alpha_rad(),
+            "beta_rad": self._beta_rad(),
+            "d_layer": int(self.d_layer.get()),
+            "n": int(self.lattice_radius.get()),
+            "interaction_radius": 5.0 * float(self.R_bohr.get()),
+            "orbital_l": int(self.orbital_l.get()),
+        }
+
+    def _nearest_atoms(self, geometry):
+        return nearest_atoms(
+            geometry["a_lattice"],
+            geometry["interaction_radius"],
+            geometry["alpha_rad"],
+            geometry["beta_rad"],
+            n=geometry["n"],
+            d_layer=geometry["d_layer"],
+        )
+
+    def _filtered_impact_parameters(self, atoms, max_atoms=200, eps_a=1e-4):
+        atoms_sorted = sorted(atoms, key=lambda item: float(item["distance_to_line"]))[:int(max_atoms)]
+        a_list = [
+            float(item["distance_to_line"])
+            for item in atoms_sorted
+            if float(item["distance_to_line"]) > float(eps_a)
+        ]
+        return atoms_sorted, a_list
+
     # -------- Автоподбор n --------
     def _recompute_n(self):
         """Пересчитать n по углам/слою и обновить слайдер+подпись (если включён авто-режим)."""
@@ -253,8 +316,8 @@ class App(tk.Tk):
             return
         a = float(self.a.get())
         R = float(self.R_bohr.get())
-        alpha = float(self.alpha.get())
-        beta = float(self.beta.get())
+        alpha = self._alpha_rad()
+        beta = self._beta_rad()
         d = int(self.d_layer.get())
 
         n_auto = compute_lattice_n_auto(a, R, alpha, beta, d)
@@ -267,39 +330,35 @@ class App(tk.Tk):
 
     # -------- Левая панель --------
     def update_output_left(self):
-        a = float(self.a.get())
-        R_bohr = float(self.R_bohr.get())
-        alpha = float(self.alpha.get())
-        beta = float(self.beta.get())
-        d_layer = int(self.d_layer.get())
-        interaction_radius = 5 * R_bohr
-        n = int(self.lattice_radius.get())
+        geometry = self._geometry_context()
+        atoms = self._nearest_atoms(geometry)
+        matrices, inverses = transition_matrices(L_source=geometry["orbital_l"])
 
         logger.info(
             "LEFT | a=%.4f Å, R_bohr=%.4f Å, interaction_radius=%.4f Å, "
-            "alpha=%.4f rad, beta=%.4f rad, n=%d, d=%d",
-            a, R_bohr, interaction_radius, alpha, beta, n, d_layer
-        )
-
-        atoms = nearest_atoms(
-            a,
-            interaction_radius,
-            alpha,
-            beta,
-            n=n,
-            d_layer=d_layer
+            "alpha=%.4f deg (%.4f rad), beta=%.4f deg (%.4f rad), n=%d, d=%d, L=%d",
+            geometry["a_lattice"],
+            geometry["R_bohr"],
+            geometry["interaction_radius"],
+            geometry["alpha_deg"],
+            geometry["alpha_rad"],
+            geometry["beta_deg"],
+            geometry["beta_rad"],
+            geometry["n"],
+            geometry["d_layer"],
+            geometry["orbital_l"],
         )
         logger.info("LEFT | найдено атомов: %d", len(atoms))
 
-        matrices, inverses = transition_matrices(L_source=1)
-        for Ln, D in matrices.items():
+        for lz, D in matrices.items():
             logger.info(
-                "LEFT | D(Ln=%d), det=%.6e, invertible=%s",
-                Ln, np.linalg.det(D),
-                inverses[Ln] is not None
+                "LEFT | D(Lz=%d), det=%.6e, invertible=%s",
+                lz,
+                np.linalg.det(D),
+                inverses[lz] is not None,
             )
 
-        txt = (f"Ближайшие атомы (расстояние до прямой ≤ {interaction_radius:.2f} Å):\n"
+        txt = (f"Ближайшие атомы (расстояние до прямой ≤ {geometry['interaction_radius']:.2f} Å):\n"
                f"Всего найдено: {len(atoms)}\n")
         preview = atoms[:10]
         for item in preview:
@@ -310,10 +369,14 @@ class App(tk.Tk):
         if len(atoms) > len(preview):
             txt += "...\n"
 
-        txt += "\nМатрицы переходов D (L_s = 1):\n"
-        for Ln, D in matrices.items():
-            txt += f"\nLn = {Ln}:\n{np.array2string(D, precision=4, suppress_small=True)}"
-            inv = inverses[Ln]
+        txt += (
+            f"\nПараметры направления: α={geometry['alpha_deg']:.2f}° ({geometry['alpha_rad']:.4f} рад), "
+            f"β={geometry['beta_deg']:.2f}° ({geometry['beta_rad']:.4f} рад)\n"
+        )
+        txt += f"\nМатрицы переходов D (L = {geometry['orbital_l']}):\n"
+        for lz, D in matrices.items():
+            txt += f"\nLz = {lz}:\n{np.array2string(D, precision=4, suppress_small=True)}"
+            inv = inverses[lz]
             if inv is not None:
                 txt += "\nD^-1:\n" + np.array2string(inv, precision=4, suppress_small=True)
             else:
@@ -326,51 +389,26 @@ class App(tk.Tk):
     # -------- Правая панель (Часть 2) --------
     def update_output_right(self):
         try:
-            # --- выбор chi и режима I3 ---
             chi_fn = chi_table_interp if self.use_table_chi.get() else chi_default
             i3_mode = "sum_avg" if self.i3_mode_sum.get() else "trapz"
+            geometry = self._geometry_context()
+            atoms = self._nearest_atoms(geometry)
+            _, a_list = self._filtered_impact_parameters(atoms)
 
-            # --- параметры геометрии (Часть 1) ---
-            a_lattice = float(self.a.get())
-            R_bohr = float(self.R_bohr.get())
-            alpha = float(self.alpha.get())
-            beta = float(self.beta.get())
-            d_layer = int(self.d_layer.get())
-            n = int(self.lattice_radius.get())
-            interaction_radius = 5.0 * R_bohr
-
-            atoms = nearest_atoms(
-                a_lattice,
-                interaction_radius,
-                alpha,
-                beta,
-                n=n,
-                d_layer=d_layer
-            )
-
-            # сортировка по d_прямой (ближайшие важнее) + ограничение числа атомов (ускорение)
-            atoms_sorted = sorted(atoms, key=lambda it: float(it["distance_to_line"]))
-            MAX_ATOMS = 200
-            atoms_sorted = atoms_sorted[:MAX_ATOMS]
-
-            a_list_raw = [float(item["distance_to_line"]) for item in atoms_sorted]
-
-            # --- защита от a≈0 (иначе 1/a^5 взорвётся) ---
             EPS_A = 1e-4  # Å (можно увеличить до 1e-3, если будут выбросы)
-            a_list = [a for a in a_list_raw if a > EPS_A]
 
             logger.info(
                 "RIGHT | Emin=%.3g eV, Emax=%.3g eV, N=%d, Z=%.3g, lattice_a=%.3g Å, b=%.3g Å, "
                 "c1=%.3g, c2=%.3g, dr=%.3g Å, rmax=%.3g Å, atoms(all)=%d, atoms(used)=%d, "
-                "R_int=%.3g Å, n=%d, alpha=%.3g rad, beta=%.3g rad, eps_a=%.3g",
+                "R_int=%.3g Å, n=%d, alpha=%.3f deg, beta=%.3f deg, L=%d, eps_a=%.3g",
                 self.Emin.get(), self.Emax.get(), int(self.Npts.get()),
-                self.Z.get(), a_lattice, self.b.get(),
+                self.Z.get(), geometry["a_lattice"], self.b.get(),
                 self.c1.get(), self.c2.get(),
                 self.dr.get(), self.rmax.get(),
                 len(atoms), len(a_list),
-                interaction_radius, n,
-                alpha, beta,
-                EPS_A
+                geometry["interaction_radius"], geometry["n"],
+                geometry["alpha_deg"], geometry["beta_deg"],
+                geometry["orbital_l"], EPS_A,
             )
 
             if not a_list:
@@ -379,7 +417,6 @@ class App(tk.Tk):
                     "Увеличьте n или радиус взаимодействия (R_bohr), либо измените α/β."
                 )
 
-            # --- проверка корректности пределов интегрирования ---
             rmax = float(self.rmax.get())
             a_max = max(a_list)
             if rmax <= a_max:
@@ -388,11 +425,10 @@ class App(tk.Tk):
                     "Увеличьте r_max или уменьшите радиус/кол-во атомов."
                 )
 
-            # --- расчёт сетки по энергии с суммированием по атомам (a = d_прямой) ---
-            df = compute_grid_atoms(
-                float(self.Emin.get()),
-                float(self.Emax.get()),
-                int(self.Npts.get()),
+            phase_params = PhaseGridParams(
+                Emin_eV=float(self.Emin.get()),
+                Emax_eV=float(self.Emax.get()),
+                N=int(self.Npts.get()),
                 a_list_ang=a_list,
                 Z=float(self.Z.get()),
                 b_ang=float(self.b.get()),
@@ -401,10 +437,15 @@ class App(tk.Tk):
                 dr_ang=float(self.dr.get()),
                 r_max_ang=rmax,
                 chi=chi_fn,
-                i3_mode=i3_mode
+                i3_mode=i3_mode,
+            )
+            result = run_formula_variant(
+                formula_variant=self._selected_formula_variant(),
+                orbital_l=geometry["orbital_l"],
+                phase_params=phase_params,
             )
 
-            logger.info("RIGHT | сетка рассчитана: %d точек", len(df))
+            logger.info("RIGHT | сетка рассчитана: %d точек", len(result.grid))
 
         except Exception as ex:
             logger.exception("RIGHT | ошибка при расчёте")
@@ -416,20 +457,8 @@ class App(tk.Tk):
             self.canvas.draw()
             return
 
-        # Матрица D и её Ln (Ln используем как L_atom в фазовой матрице)
-        matrices, _ = transition_matrices(L_source=1)
-        # TODO: добавить комбобокс с выбором L
-
-        if 1 in matrices:
-            Ln, D = 1, matrices[1]
-        else:
-            Ln = next(iter(matrices.keys()))
-            D = matrices[Ln]
-
-        E = df["E_eV"].values
-        Phi = df["Phi"].values
-
-        sp = spin_amplitudes_both(E, Phi, D, L_atom=Ln)
+        E = result.grid["E_eV"].to_numpy(dtype=float)
+        sp = result.spin_curves
 
         # График 1: проверочный спектр (две подготовки)
         self.ax_sum.clear()
@@ -462,15 +491,23 @@ class App(tk.Tk):
         self.canvas.draw()
 
         # краткая сводка в левый лог (output)
+        if result.fixed_lz is not None:
+            lz_summary = f"Lz={result.fixed_lz} (фиксировано)"
+        else:
+            preview = ", ".join(str(value) for value in result.lz_chain[:8])
+            suffix = "..." if len(result.lz_chain) > 8 else ""
+            lz_summary = f"Lz=random [{preview}{suffix}]"
+
         self.output.insert(
             tk.END,
-            f"\n[Часть 2 | Σ по атомам] E∈[{self.Emin.get():.3g},{self.Emax.get():.3g}] эВ, "
+            f"\n[Часть 2 | {self.formula_variant_label.get()}] E∈[{self.Emin.get():.3g},{self.Emax.get():.3g}] эВ, "
             f"N={int(self.Npts.get())}, Z={self.Z.get():.3g}, "
-            f"lattice_a={a_lattice:.3g} Å, b={self.b.get():.3g} Å, "
-            f"atoms={len(a_list)}, R_int={interaction_radius:.3g} Å, n={n}, "
-            f"α={alpha:.3g} rad, β={beta:.3g} rad, "
+            f"lattice_a={geometry['a_lattice']:.3g} Å, b={self.b.get():.3g} Å, "
+            f"atoms={len(a_list)}, R_int={geometry['interaction_radius']:.3g} Å, n={geometry['n']}, "
+            f"α={geometry['alpha_deg']:.3g}°, β={geometry['beta_deg']:.3g}°, "
             f"χ={'table' if self.use_table_chi.get() else 'exp'}, "
-            f"I3={'sum' if self.i3_mode_sum.get() else 'trapz'}, Ln={Ln}\n"
+            f"I3={'sum' if self.i3_mode_sum.get() else 'trapz'}, "
+            f"L={geometry['orbital_l']}, {lz_summary}\n"
         )
 
 
