@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+tests/__pycache__/
+.idea/
+venv/
+data/*.csv
+!data/.gitkeep
+log.txt

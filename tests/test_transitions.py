@@ -2,12 +2,12 @@ import unittest
 
 import numpy as np
 
-from transitions import transition_matrices
+from polarization_app.domain.transitions import build_transition_matrices
 
 
 class TransitionMatricesTestCase(unittest.TestCase):
     def test_l_equals_one_matrices(self):
-        matrices, inverses = transition_matrices(1)
+        matrices, inverses = build_transition_matrices(1)
 
         expected_keys = [-1, 0, 1]
         self.assertEqual(list(matrices.keys()), expected_keys)
