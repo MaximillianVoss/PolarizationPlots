@@ -36,6 +36,8 @@ from polarization_app.physics.phase_integrals import exponential_chi, interpolat
 
 
 logger = logging.getLogger(__name__)
+CONTROL_PANEL_WIDTH = 360
+CONTROL_WRAP_LENGTH = 300
 
 
 def configure_logging() -> None:
@@ -161,16 +163,17 @@ class App(tk.Tk):
         ttk.Label(self, textvariable=self.status_text, anchor="w", padding=(8, 4)).grid(row=1, column=0, sticky="ew")
 
     def _build_geometry_tab(self, panel) -> None:
-        panel.columnconfigure(0, weight=1)
-        panel.rowconfigure(1, weight=1)
+        panel.columnconfigure(0, weight=0, minsize=CONTROL_PANEL_WIDTH)
+        panel.columnconfigure(1, weight=1)
+        panel.rowconfigure(0, weight=1)
 
-        controls = ttk.Frame(panel, padding=(6, 6, 6, 0))
-        controls.grid(row=0, column=0, sticky="ew")
+        controls = ttk.Frame(panel, padding=(6, 6, 6, 6), width=CONTROL_PANEL_WIDTH)
+        controls.grid(row=0, column=0, sticky="nsw")
         controls.columnconfigure(0, weight=1)
         self._build_geometry_section(controls, row=0)
 
         body = ttk.Panedwindow(panel, orient=tk.VERTICAL)
-        body.grid(row=1, column=0, sticky="nsew", padx=6, pady=6)
+        body.grid(row=0, column=1, sticky="nsew", padx=(0, 6), pady=6)
 
         preview_panel = ttk.Frame(body, padding=6)
         output_panel = ttk.Frame(body, padding=6)
@@ -185,17 +188,18 @@ class App(tk.Tk):
         self.output = self.geometry_output
 
     def _build_spectrum_tab(self, panel) -> None:
-        panel.columnconfigure(0, weight=1)
-        panel.rowconfigure(1, weight=1)
+        panel.columnconfigure(0, weight=0, minsize=CONTROL_PANEL_WIDTH)
+        panel.columnconfigure(1, weight=1)
+        panel.rowconfigure(0, weight=1)
 
-        controls = ttk.Frame(panel, padding=(6, 6, 6, 0))
-        controls.grid(row=0, column=0, sticky="ew")
+        controls = ttk.Frame(panel, padding=(6, 6, 6, 6), width=CONTROL_PANEL_WIDTH)
+        controls.grid(row=0, column=0, sticky="nsw")
         controls.columnconfigure(0, weight=1)
         self._build_interaction_section(controls, row=0)
         self._build_calculation_section(controls, row=1)
 
         body = ttk.Panedwindow(panel, orient=tk.VERTICAL)
-        body.grid(row=1, column=0, sticky="nsew", padx=6, pady=6)
+        body.grid(row=0, column=1, sticky="nsew", padx=(0, 6), pady=6)
 
         plot_panel = ttk.Frame(body, padding=6)
         output_panel = ttk.Frame(body, padding=6)
@@ -274,12 +278,12 @@ class App(tk.Tk):
             textvariable=self.formula_variant_label,
             values=list(FORMULA_LABELS.values()),
             state="readonly",
-            width=46,
+            width=30,
         )
         formula_box.grid(row=current_row, column=1, sticky="ew", padx=(8, 0), pady=(6, 0))
         current_row += 1
 
-        ttk.Label(section, textvariable=self.formula_hint_text, foreground="#555", wraplength=760, justify="left").grid(
+        ttk.Label(section, textvariable=self.formula_hint_text, foreground="#555", wraplength=CONTROL_WRAP_LENGTH, justify="left").grid(
             row=current_row, column=0, columnspan=2, sticky="w", pady=(4, 0)
         )
         current_row += 1
@@ -305,7 +309,13 @@ class App(tk.Tk):
         actions = ttk.Frame(section)
         actions.grid(row=current_row, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         ttk.Button(actions, text="Построить графики", command=self.update_output_right).pack(side="left")
-        ttk.Label(actions, text="Колесо мыши над графиком приближает к курсору.", foreground="#555").pack(side="left", padx=(10, 0))
+        ttk.Label(
+            actions,
+            text="Колесо мыши масштабирует график.",
+            foreground="#555",
+            wraplength=150,
+            justify="left",
+        ).pack(side="left", padx=(10, 0))
 
     def _build_spin_plot_area(self, panel) -> None:
         panel.columnconfigure(0, weight=1)
@@ -335,7 +345,7 @@ class App(tk.Tk):
                 " которые реально попадают в выбор и расчёт. В авто-режиме область может стать параллелепипедом."
             ),
             foreground="#555",
-            wraplength=920,
+            wraplength=760,
             justify="left",
         ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
@@ -420,16 +430,22 @@ class App(tk.Tk):
     def _make_slider(self, parent, label, variable, min_value, max_value, row, description="", resolution=0.01):
         frame = ttk.Frame(parent)
         frame.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(2, 0))
-        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(0, weight=1)
 
         label_frame = ttk.Frame(frame)
-        label_frame.grid(row=0, column=0, sticky="w")
+        label_frame.grid(row=0, column=0, columnspan=2, sticky="ew")
         ttk.Label(label_frame, text=label).grid(row=0, column=0, sticky="w")
         if description:
-            ttk.Label(label_frame, text=f"({description})", foreground="#555").grid(row=1, column=0, sticky="w")
+            ttk.Label(
+                label_frame,
+                text=f"({description})",
+                foreground="#555",
+                wraplength=CONTROL_WRAP_LENGTH,
+                justify="left",
+            ).grid(row=1, column=0, sticky="w")
 
         slider = ttk.Scale(frame, from_=min_value, to=max_value, orient="horizontal", variable=variable)
-        slider.grid(row=0, column=1, sticky="ew", rowspan=2, padx=8)
+        slider.grid(row=1, column=0, sticky="ew", padx=(0, 8), pady=(2, 0))
 
         def format_value(value):
             try:
@@ -440,7 +456,7 @@ class App(tk.Tk):
                 return str(value)
 
         value_label = ttk.Label(frame, text=format_value(variable.get()))
-        value_label.grid(row=0, column=2, rowspan=2, sticky="e")
+        value_label.grid(row=1, column=1, sticky="e", pady=(2, 0))
         variable.trace_add("write", lambda *_: value_label.config(text=format_value(variable.get())))
 
     def _current_source_depth(self) -> int:
