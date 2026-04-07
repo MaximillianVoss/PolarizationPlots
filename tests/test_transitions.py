@@ -13,9 +13,9 @@ class TransitionMatricesTestCase(unittest.TestCase):
         self.assertEqual(list(matrices.keys()), expected_keys)
 
         expected_matrices = {
-            -1: np.array([[0.57735027, -1.0], [0.81649658, 0.0]]),
-            0: np.array([[0.81649658, -0.81649658], [0.57735027, 0.57735027]]),
-            1: np.array([[1.0, -0.57735027], [0.0, 0.81649658]]),
+            -1: np.array([[np.sqrt(1.0 / 3.0), -np.sqrt(2.0 / 3.0)], [np.sqrt(2.0 / 3.0), np.sqrt(1.0 / 3.0)]]),
+            0: np.array([[np.sqrt(2.0 / 3.0), -np.sqrt(1.0 / 3.0)], [np.sqrt(1.0 / 3.0), np.sqrt(2.0 / 3.0)]]),
+            1: np.array([[1.0, 0.0], [0.0, 1.0]]),
         }
 
         for lz, expected in expected_matrices.items():

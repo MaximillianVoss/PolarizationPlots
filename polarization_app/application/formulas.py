@@ -28,7 +28,7 @@ FORMULA_LABELS = {
 FORMULA_BY_LABEL = {label: key for key, label in FORMULA_LABELS.items()}
 FORMULA_HINTS = {
     FORMULA_LEGACY: "Упрощённый случай из отчёта: на всей цепочке используется один и тот же Lz.",
-    FORMULA_NEW: "Для каждого атома выбирается собственный Lz, что ближе к многоатомной немагнитной среде.",
+    FORMULA_NEW: "Для каждого атома выбирается собственный Lz и перемножается вероятностная матрица атома.",
 }
 
 
@@ -123,6 +123,7 @@ def execute_formula_variant(
             grid["Phi"].to_numpy(dtype=float),
             matrices[fixed_lz],
             orbital_l=orbital_l,
+            magnetic_lz=fixed_lz,
         )
         return FormulaResult(
             grid=grid,
@@ -150,7 +151,7 @@ def execute_formula_variant(
             dump_atom_phi_csv=phase_request.dump_atom_phi_csv,
             max_atoms_dump=phase_request.max_atoms_dump,
         )
-        transition_chain, lz_chain = sample_random_lz_chain(
+        _transition_chain, lz_chain = sample_random_lz_chain(
             matrices=matrices,
             atom_count=int(phi_atoms.shape[1]),
             rng=rng,
@@ -158,8 +159,8 @@ def execute_formula_variant(
         spin_curves = compute_spin_observables_for_chain(
             grid["E_eV"].to_numpy(dtype=float),
             phi_atoms,
-            transition_chain,
             orbital_l=orbital_l,
+            magnetic_lz_chain=lz_chain,
         )
         return FormulaResult(
             grid=grid,

@@ -9,6 +9,7 @@ from polarization_app.physics.phase_integrals import (
     compute_phase_grid_for_atoms_with_matrix,
 )
 from polarization_app.physics.spin_transport import (
+    compute_atom_probabilities,
     compute_spin_observables,
     compute_spin_observables_for_chain,
 )
@@ -41,31 +42,39 @@ class PolarizationPart2TestCase(unittest.TestCase):
         np.testing.assert_allclose(phi_atoms.sum(axis=1), grid_with_matrix["Phi"].to_numpy(dtype=float))
         np.testing.assert_allclose(a_arr, np.array([0.5, 1.0]))
 
-    def test_spin_amplitudes_both_preserve_spin_for_identity_transition(self):
+    def test_atom_probabilities_match_corrected_formula(self):
+        phase_values = np.array([np.pi / 3.0])
+        p1, p2 = compute_atom_probabilities(phase_values, orbital_l=1, magnetic_lz=0)
+
+        np.testing.assert_allclose(p1, np.array([1.0 / 9.0]), atol=1e-12)
+        np.testing.assert_allclose(p2, np.array([1.0 / 9.0]), atol=1e-12)
+
+    def test_spin_observables_use_probability_matrix(self):
         result = compute_spin_observables(
             energies_eV=np.array([1.0, 2.0]),
-            phase_values=np.array([0.0, 0.7]),
+            phase_values=np.array([0.0, np.pi / 3.0]),
             transition_matrix=np.eye(2),
-            orbital_l=3,
+            orbital_l=1,
+            magnetic_lz=0,
         )
 
         np.testing.assert_allclose(result["sum_check_up"], np.ones(2))
-        np.testing.assert_allclose(result["spin_mean_up"], np.ones(2))
         np.testing.assert_allclose(result["sum_check_dn"], np.ones(2))
-        np.testing.assert_allclose(result["spin_mean_dn"], -np.ones(2))
+        np.testing.assert_allclose(result["spin_mean_up"], np.array([1.0, -7.0 / 9.0]), atol=1e-12)
+        np.testing.assert_allclose(result["spin_mean_dn"], np.array([-1.0, 7.0 / 9.0]), atol=1e-12)
 
-    def test_spin_amplitudes_both_chain_preserve_spin_for_identity_transition(self):
+    def test_spin_observables_for_chain_preserve_probability_sum(self):
         result = compute_spin_observables_for_chain(
             energies_eV=np.array([1.0, 2.0]),
             phase_matrix_by_atom=np.array([[0.1, 0.2], [0.3, 0.4]]),
-            transition_chain=[np.eye(2), np.eye(2)],
+            magnetic_lz_chain=[0, 1],
             orbital_l=2,
         )
 
         np.testing.assert_allclose(result["sum_check_up"], np.ones(2))
-        np.testing.assert_allclose(result["spin_mean_up"], np.ones(2))
         np.testing.assert_allclose(result["sum_check_dn"], np.ones(2))
-        np.testing.assert_allclose(result["spin_mean_dn"], -np.ones(2))
+        self.assertTrue(np.all(np.abs(result["spin_mean_up"]) <= 1.0 + 1e-12))
+        self.assertTrue(np.all(np.abs(result["spin_mean_dn"]) <= 1.0 + 1e-12))
 
 
 class FormulaVariantsTestCase(unittest.TestCase):
