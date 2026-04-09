@@ -3,7 +3,9 @@ import logging
 import tkinter as tk
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
-from tkinter import ttk
+from datetime import datetime
+from pathlib import Path
+from tkinter import filedialog, ttk
 
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -20,6 +22,7 @@ from polarization_app.application.formulas import (
     execute_formula_variant,
 )
 from polarization_app.application.geometry import GeometryContext, collect_atom_selection
+from polarization_app.application.spectrum_export import export_spectrum_bundle
 from polarization_app.domain.lattice import LatticeSearchRegion, estimate_lattice_search_region
 from polarization_app.domain.transitions import build_transition_matrices
 from polarization_app.gui.plotting import (
@@ -141,6 +144,7 @@ class App(tk.Tk):
         self._scheduled_right_after: str | None = None
         self._running_future: Future | None = None
         self._queued_request: PlotComputationRequest | None = None
+        self._latest_plot_payload: PlotComputationResult | None = None
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="polarization")
         self._closing = False
         self._geometry_change_in_progress = False
@@ -309,6 +313,7 @@ class App(tk.Tk):
         actions = ttk.Frame(section)
         actions.grid(row=current_row, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         ttk.Button(actions, text="Построить графики", command=self.update_output_right).pack(side="left")
+        ttk.Button(actions, text="Экспорт JSON/XML/XLSX", command=self._export_spectrum_data).pack(side="left", padx=(8, 0))
         ttk.Label(
             actions,
             text="Колесо мыши масштабирует график.",
@@ -720,6 +725,7 @@ class App(tk.Tk):
         result = payload.result
         request = payload.request
         energies_eV = result.grid["E_eV"].to_numpy(dtype=float)
+        self._latest_plot_payload = payload
         draw_spin_plots(self.ax_sum, self.ax_spin, energies_eV, result.spin_curves)
         self.fig.tight_layout()
         self._default_view_limits = capture_view_limits(self.ax_sum, self.ax_spin)
@@ -750,6 +756,7 @@ class App(tk.Tk):
         logger.info("RIGHT | сетка рассчитана: %d точек", len(result.grid))
 
     def _display_right_error(self, error: Exception) -> None:
+        self._latest_plot_payload = None
         for axis in (self.ax_sum, self.ax_spin):
             axis.clear()
             axis.text(0.05, 0.95, f"Ошибка: {error}", transform=axis.transAxes, va="top", ha="left")
@@ -818,6 +825,84 @@ class App(tk.Tk):
             return
         target.insert(tk.END, text)
         target.see(tk.END)
+
+    def _export_spectrum_data(self) -> None:
+        payload = self._latest_plot_payload
+        if payload is None:
+            self.status_text.set("Нет рассчитанного спектра для экспорта. Сначала постройте графики.")
+            self._append_output("\n[Экспорт] Нет рассчитанного спектра для экспорта.\n")
+            return
+
+        default_name = self._default_export_name(payload)
+        selected_path = filedialog.asksaveasfilename(
+            parent=self,
+            title="Экспорт спектра",
+            initialfile=default_name,
+            defaultextension=".json",
+            filetypes=[
+                ("JSON", "*.json"),
+                ("Excel", "*.xlsx"),
+                ("XML", "*.xml"),
+                ("Все файлы", "*.*"),
+            ],
+        )
+        if not selected_path:
+            return
+
+        selected = Path(selected_path)
+        base_path = selected.parent / selected.stem if selected.suffix else selected
+        result = payload.result
+        energies_eV = result.grid["E_eV"].to_numpy(dtype=float)
+
+        try:
+            exported = export_spectrum_bundle(
+                base_path=base_path,
+                energies_eV=energies_eV,
+                spin_curves=result.spin_curves,
+                metadata=self._build_spectrum_export_metadata(payload),
+            )
+        except Exception as ex:
+            logger.exception("EXPORT | ошибка экспорта спектра")
+            self.status_text.set(f"Ошибка экспорта: {ex}")
+            self._append_output(f"\n[Экспорт] Ошибка: {ex}\n")
+            return
+
+        exported_summary = ", ".join(f"{kind.upper()}={path.name}" for kind, path in exported.items())
+        self.status_text.set(f"Экспорт выполнен: {base_path.stem}")
+        self._append_output(f"\n[Экспорт] {exported_summary}\n")
+
+    def _default_export_name(self, payload: PlotComputationResult) -> str:
+        variant = payload.request.formula_variant.replace("_", "-")
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        return f"spectrum-{variant}-{timestamp}"
+
+    def _build_spectrum_export_metadata(self, payload: PlotComputationResult) -> dict[str, object]:
+        request = payload.request
+        result = payload.result
+        metadata: dict[str, object] = {
+            "exported_at": datetime.now().isoformat(timespec="seconds"),
+            "formula_label": request.formula_label,
+            "formula_variant": request.formula_variant,
+            "orbital_l": request.geometry.orbital_l,
+            "energy_min_eV": request.phase_request.Emin_eV,
+            "energy_max_eV": request.phase_request.Emax_eV,
+            "energy_point_count": request.phase_request.N,
+            "used_atom_count": len(request.phase_request.a_list_ang),
+            "all_atom_count": request.all_atom_count,
+            "lattice_constant_ang": request.geometry.lattice_constant_ang,
+            "interaction_radius_ang": request.geometry.interaction_radius_ang,
+            "impact_parameter_max_ang": max(request.phase_request.a_list_ang),
+            "source_depth_layer": request.geometry.source_depth,
+            "alpha_deg": request.geometry.alpha_deg,
+            "beta_deg": request.geometry.beta_deg,
+            "chi_model": "table" if request.use_table_chi else "exp",
+            "i3_mode": "sum" if request.i3_mode_sum else "trapz",
+        }
+        if result.fixed_lz is not None:
+            metadata["fixed_lz"] = result.fixed_lz
+        else:
+            metadata["lz_chain"] = list(result.lz_chain)
+        return metadata
 
     def _refresh_geometry_preview(self, geometry: GeometryContext, atom_selection, search_region: LatticeSearchRegion) -> None:
         if (
