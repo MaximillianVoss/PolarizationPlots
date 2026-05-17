@@ -28,6 +28,7 @@ from polarization_app.domain.transitions import build_transition_matrices
 from polarization_app.gui.plotting import (
     build_geometry_preview_data,
     capture_view_limits,
+    draw_boundary_utility_plots,
     draw_geometry_preview,
     draw_spin_plots,
     restore_view_limits,
@@ -35,6 +36,7 @@ from polarization_app.gui.plotting import (
     zoom_3d_axis,
     zoom_axis_around_point,
 )
+from polarization_app.physics.boundary_reflection import compute_boundary_point, compute_boundary_reflection_curves
 from polarization_app.physics.phase_integrals import exponential_chi, interpolate_thomas_fermi_chi
 
 
@@ -99,6 +101,7 @@ class App(tk.Tk):
         self._update_formula_hint()
         self.update_output_left()
         self.after(0, self.update_output_right)
+        self.after(0, self._update_boundary_utility)
 
     def _create_variables(self) -> None:
         self.a = tk.DoubleVar(value=4.75)
@@ -123,11 +126,18 @@ class App(tk.Tk):
         self.formula_variant_label = tk.StringVar(value=FORMULA_LABELS[FORMULA_LEGACY])
         self.use_table_chi = tk.BooleanVar(value=True)
         self.i3_mode_sum = tk.BooleanVar(value=True)
+        self.boundary_alpha_deg = tk.DoubleVar(value=45.0)
+        self.boundary_work_function = tk.DoubleVar(value=5.0)
+        self.boundary_energy_point = tk.DoubleVar(value=100.0)
+        self.boundary_Emin = tk.DoubleVar(value=10.0)
+        self.boundary_Emax = tk.DoubleVar(value=500.0)
+        self.boundary_Npts = tk.IntVar(value=240)
         self.status_text = tk.StringVar(value="Готово.")
         self.formula_hint_text = tk.StringVar(value="")
 
         self.geometry_output: tk.Text | None = None
         self.spectrum_output: tk.Text | None = None
+        self.boundary_output: tk.Text | None = None
         self.output: tk.Text | None = None
         self.n_auto_label: ttk.Label | None = None
         self.ax_sum = None
@@ -135,11 +145,16 @@ class App(tk.Tk):
         self.ax_geometry_3d = None
         self.ax_geometry_xz = None
         self.ax_geometry_xy = None
+        self.ax_boundary_reflection = None
+        self.ax_boundary_angle = None
         self.canvas: FigureCanvasTkAgg | None = None
         self.fig: Figure | None = None
         self.geometry_canvas: FigureCanvasTkAgg | None = None
         self.geometry_fig: Figure | None = None
+        self.boundary_canvas: FigureCanvasTkAgg | None = None
+        self.boundary_fig: Figure | None = None
         self._default_view_limits = None
+        self._boundary_view_limits = None
         self._scheduled_left_after: str | None = None
         self._scheduled_right_after: str | None = None
         self._running_future: Future | None = None
@@ -158,11 +173,14 @@ class App(tk.Tk):
 
         geometry_tab = ttk.Frame(notebook)
         spectrum_tab = ttk.Frame(notebook)
+        boundary_tab = ttk.Frame(notebook)
         notebook.add(geometry_tab, text="Геометрия и переходы")
         notebook.add(spectrum_tab, text="Спектры и формулы")
+        notebook.add(boundary_tab, text="Граница раздела")
 
         self._build_geometry_tab(geometry_tab)
         self._build_spectrum_tab(spectrum_tab)
+        self._build_boundary_tab(boundary_tab)
 
         ttk.Label(self, textvariable=self.status_text, anchor="w", padding=(8, 4)).grid(row=1, column=0, sticky="ew")
 
@@ -215,6 +233,31 @@ class App(tk.Tk):
             output_panel,
             title="Сводка расчёта спектра",
             height=8,
+        )
+
+    def _build_boundary_tab(self, panel) -> None:
+        panel.columnconfigure(0, weight=0, minsize=CONTROL_PANEL_WIDTH)
+        panel.columnconfigure(1, weight=1)
+        panel.rowconfigure(0, weight=1)
+
+        controls = ttk.Frame(panel, padding=(6, 6, 6, 6), width=CONTROL_PANEL_WIDTH)
+        controls.grid(row=0, column=0, sticky="nsw")
+        controls.columnconfigure(0, weight=1)
+        self._build_boundary_section(controls, row=0)
+
+        body = ttk.Panedwindow(panel, orient=tk.VERTICAL)
+        body.grid(row=0, column=1, sticky="nsew", padx=(0, 6), pady=6)
+
+        plot_panel = ttk.Frame(body, padding=6)
+        output_panel = ttk.Frame(body, padding=6)
+        body.add(plot_panel, weight=4)
+        body.add(output_panel, weight=2)
+
+        self._build_boundary_plot_area(plot_panel)
+        self.boundary_output = self._build_text_output_panel(
+            output_panel,
+            title="Сводка по выбранной энергии",
+            height=10,
         )
 
     def _build_geometry_section(self, parent, row: int) -> None:
@@ -322,6 +365,81 @@ class App(tk.Tk):
             justify="left",
         ).pack(side="left", padx=(10, 0))
 
+    def _build_boundary_section(self, parent, row: int) -> None:
+        section = ttk.LabelFrame(parent, text="Мини-утилита отражения от границы", padding=10)
+        section.grid(row=row, column=0, sticky="ew")
+        section.columnconfigure(0, weight=1)
+
+        current_row = 0
+        ttk.Label(
+            section,
+            text=(
+                "Утилита не влияет на основной расчёт поляризации. "
+                "Здесь α означает угол падения к нормали границы, а β - угол после прохождения через границу."
+            ),
+            foreground="#555",
+            wraplength=CONTROL_WRAP_LENGTH,
+            justify="left",
+        ).grid(row=current_row, column=0, sticky="w", pady=(0, 6))
+        current_row += 1
+
+        self._make_slider(
+            section,
+            "Угол падения α (°)",
+            self.boundary_alpha_deg,
+            0.0,
+            89.0,
+            current_row,
+            description="Задаётся относительно нормали к границе раздела",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "Работа выхода A (эВ)",
+            self.boundary_work_function,
+            0.0,
+            15.0,
+            current_row,
+            description="Скачок потенциальной энергии на границе",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "Выбранная энергия E (эВ)",
+            self.boundary_energy_point,
+            1.0,
+            1000.0,
+            current_row,
+            description="Для этой точки отдельно выводятся β, k'/k и R",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "Emin для графика (эВ)",
+            self.boundary_Emin,
+            1.0,
+            1000.0,
+            current_row,
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "Emax для графика (эВ)",
+            self.boundary_Emax,
+            10.0,
+            2000.0,
+            current_row,
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "N точек графика",
+            self.boundary_Npts,
+            40,
+            800,
+            current_row,
+            resolution=1,
+        ); current_row += 1
+
+        ttk.Button(section, text="Обновить утилиту", command=self._update_boundary_utility).grid(
+            row=current_row, column=0, sticky="w", pady=(8, 0)
+        )
+
     def _build_spin_plot_area(self, panel) -> None:
         panel.columnconfigure(0, weight=1)
         panel.rowconfigure(1, weight=1)
@@ -337,6 +455,25 @@ class App(tk.Tk):
         self.canvas = FigureCanvasTkAgg(self.fig, master=panel)
         self.canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew")
         self.canvas.mpl_connect("scroll_event", self._on_plot_scroll)
+
+    def _build_boundary_plot_area(self, panel) -> None:
+        panel.columnconfigure(0, weight=1)
+        panel.rowconfigure(1, weight=1)
+
+        zoom_bar = ttk.Frame(panel)
+        zoom_bar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        ttk.Label(zoom_bar, text="Колесо мыши масштабирует графики утилиты относительно курсора.").pack(side="left")
+        ttk.Button(zoom_bar, text="Сбросить масштаб", command=self._reset_boundary_zoom).pack(side="right")
+
+        self.boundary_fig = Figure(figsize=(7.4, 6.0), dpi=100)
+        self.ax_boundary_reflection = self.boundary_fig.add_subplot(211)
+        self.ax_boundary_angle = self.boundary_fig.add_subplot(212)
+        for axis in (self.ax_boundary_reflection, self.ax_boundary_angle):
+            axis.grid(True, which="both")
+
+        self.boundary_canvas = FigureCanvasTkAgg(self.boundary_fig, master=panel)
+        self.boundary_canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew")
+        self.boundary_canvas.mpl_connect("scroll_event", self._on_boundary_plot_scroll)
 
     def _build_geometry_preview_area(self, panel) -> None:
         panel.columnconfigure(0, weight=1)
@@ -432,6 +569,16 @@ class App(tk.Tk):
         self.formula_variant_label.trace_add("write", lambda *_: self._on_formula_variant_changed())
         self.orbital_l.trace_add("write", lambda *_: self._on_orbital_l_changed())
 
+        for variable in (
+            self.boundary_alpha_deg,
+            self.boundary_work_function,
+            self.boundary_energy_point,
+            self.boundary_Emin,
+            self.boundary_Emax,
+            self.boundary_Npts,
+        ):
+            variable.trace_add("write", lambda *_: self._update_boundary_utility())
+
     def _make_slider(self, parent, label, variable, min_value, max_value, row, description="", resolution=0.01):
         frame = ttk.Frame(parent)
         frame.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(2, 0))
@@ -496,6 +643,22 @@ class App(tk.Tk):
             chi=interpolate_thomas_fermi_chi if self.use_table_chi.get() else exponential_chi,
             i3_mode="sum_avg" if self.i3_mode_sum.get() else "trapz",
         )
+
+    def _boundary_energy_grid(self) -> np.ndarray:
+        emin = float(self.boundary_Emin.get())
+        emax = float(self.boundary_Emax.get())
+        npts = int(self.boundary_Npts.get())
+        if emin <= 0.0 or emax <= 0.0 or emax <= emin:
+            raise ValueError("Для утилиты требуется 0 < Emin < Emax.")
+        if npts < 2:
+            raise ValueError("Для утилиты нужно минимум 2 точки по энергии.")
+        return np.linspace(emin, emax, npts, dtype=float)
+
+    def _boundary_selected_energy(self) -> float:
+        energy_value = float(self.boundary_energy_point.get())
+        if energy_value <= 0.0:
+            raise ValueError("Выбранная энергия должна быть положительной.")
+        return energy_value
 
     def _current_search_region(self, geometry: GeometryContext) -> tuple[LatticeSearchRegion, str]:
         if self.auto_n.get():
@@ -809,6 +972,23 @@ class App(tk.Tk):
                 self.geometry_output.insert(tk.END, f"\n[Geometry Scroll] Ошибка: {ex}\n")
                 self.geometry_output.see(tk.END)
 
+    def _on_boundary_plot_scroll(self, event) -> None:
+        if event.inaxes not in (self.ax_boundary_reflection, self.ax_boundary_angle):
+            return
+        factor = 0.85 if event.button == "up" else 1.18
+        try:
+            if event.xdata is None or event.ydata is None:
+                zoom_axis(event.inaxes, factor)
+            else:
+                zoom_axis_around_point(event.inaxes, factor, event.xdata, event.ydata)
+            if self.boundary_canvas is not None:
+                self.boundary_canvas.draw_idle()
+        except Exception as ex:
+            logger.exception("BOUNDARY_SCROLL | ошибка")
+            if self.boundary_output is not None:
+                self.boundary_output.insert(tk.END, f"\n[Boundary Scroll] Ошибка: {ex}\n")
+                self.boundary_output.see(tk.END)
+
     def _reset_zoom(self) -> None:
         if not self._default_view_limits:
             return
@@ -818,6 +998,111 @@ class App(tk.Tk):
         except Exception as ex:
             logger.exception("RESET_ZOOM | ошибка")
             self._append_output(f"\n[Reset Zoom] Ошибка: {ex}\n")
+
+    def _reset_boundary_zoom(self) -> None:
+        if not self._boundary_view_limits:
+            return
+        try:
+            restore_view_limits(self._boundary_view_limits)
+            if self.boundary_canvas is not None:
+                self.boundary_canvas.draw_idle()
+        except Exception as ex:
+            logger.exception("RESET_BOUNDARY_ZOOM | ошибка")
+            if self.boundary_output is not None:
+                self.boundary_output.insert(tk.END, f"\n[Reset Boundary Zoom] Ошибка: {ex}\n")
+                self.boundary_output.see(tk.END)
+
+    def _set_text_output(self, target: tk.Text | None, text: str) -> None:
+        if target is None:
+            return
+        target.delete("1.0", tk.END)
+        target.insert("1.0", text)
+        target.see("1.0")
+
+    def _update_boundary_utility(self) -> None:
+        if self._closing:
+            return
+        if (
+            self.boundary_fig is None
+            or self.boundary_canvas is None
+            or self.ax_boundary_reflection is None
+            or self.ax_boundary_angle is None
+        ):
+            return
+        try:
+            energies_eV = self._boundary_energy_grid()
+            point_energy = self._boundary_selected_energy()
+            work_function_eV = float(self.boundary_work_function.get())
+            incidence_angle_deg = float(self.boundary_alpha_deg.get())
+            point_energy = min(max(point_energy, float(energies_eV[0])), float(energies_eV[-1]))
+
+            curves = compute_boundary_reflection_curves(
+                energies_eV,
+                work_function_eV=work_function_eV,
+                incidence_angle_deg=incidence_angle_deg,
+            )
+            point_result = compute_boundary_point(
+                point_energy,
+                work_function_eV=work_function_eV,
+                incidence_angle_deg=incidence_angle_deg,
+            )
+        except Exception as ex:
+            logger.exception("BOUNDARY | ошибка расчёта утилиты")
+            if self.ax_boundary_reflection is not None and self.ax_boundary_angle is not None:
+                for axis in (self.ax_boundary_reflection, self.ax_boundary_angle):
+                    axis.clear()
+                    axis.text(0.05, 0.95, f"Ошибка: {ex}", transform=axis.transAxes, va="top", ha="left")
+                    axis.grid(True, which="both")
+                if self.boundary_canvas is not None:
+                    self.boundary_canvas.draw_idle()
+            self._set_text_output(self.boundary_output, f"[Ошибка утилиты]\n{ex}\n")
+            self.status_text.set(f"Ошибка утилиты границы: {ex}")
+            return
+
+        if self.boundary_energy_point.get() != point_energy:
+            self.boundary_energy_point.set(point_energy)
+            return
+
+        draw_boundary_utility_plots(self.ax_boundary_reflection, self.ax_boundary_angle, curves, point_result)
+        self.boundary_fig.tight_layout()
+        self._boundary_view_limits = capture_view_limits(self.ax_boundary_reflection, self.ax_boundary_angle)
+        self.boundary_canvas.draw_idle()
+
+        summary = self._format_boundary_summary(curves, point_result)
+        self._set_text_output(self.boundary_output, summary)
+
+    def _format_boundary_summary(self, curves, point_result) -> str:
+        beta_text = "не реализуется" if point_result.transmission_angle_deg is None else f"{point_result.transmission_angle_deg:.4g}°"
+        k_ratio_text = "не определён" if point_result.wavevector_ratio is None else f"{point_result.wavevector_ratio:.6g}"
+        min_reflection = float(np.nanmin(curves.reflection_coefficient))
+        max_reflection = float(np.nanmax(curves.reflection_coefficient))
+        max_probability = float(np.nanmax(curves.reflection_probability_estimate))
+        finite_beta_mask = np.isfinite(curves.transmission_angle_deg)
+        if np.any(finite_beta_mask):
+            beta_range = (
+                f"{float(np.nanmin(curves.transmission_angle_deg[finite_beta_mask])):.4g}° .. "
+                f"{float(np.nanmax(curves.transmission_angle_deg[finite_beta_mask])):.4g}°"
+            )
+        else:
+            beta_range = "для выбранного диапазона энергий β не реализуется"
+
+        return (
+            "[Мини-утилита отражения от границы]\n"
+            f"Диапазон энергий: {float(curves.energies_eV[0]):.6g} .. {float(curves.energies_eV[-1]):.6g} эВ "
+            f"({len(curves.energies_eV)} точек)\n"
+            f"A = {point_result.work_function_eV:.6g} эВ\n"
+            f"α падения = {point_result.incidence_angle_deg:.6g}°\n"
+            f"Выбранная точка: E = {point_result.energy_eV:.6g} эВ\n"
+            f"β после прохождения = {beta_text}\n"
+            f"k'/k = {k_ratio_text}\n"
+            f"R = {point_result.reflection_coefficient:.6g}\n"
+            f"R² ~ {point_result.reflection_probability_estimate:.6g}\n"
+            f"Режим: {point_result.regime}\n"
+            "\n"
+            f"По диапазону: R в пределах {min_reflection:.6g} .. {max_reflection:.6g}, "
+            f"R² до {max_probability:.6g}\n"
+            f"Диапазон реализуемых β: {beta_range}\n"
+        )
 
     def _append_output(self, text: str) -> None:
         target = self.spectrum_output or self.output

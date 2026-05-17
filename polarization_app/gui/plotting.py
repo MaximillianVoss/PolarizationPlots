@@ -5,6 +5,7 @@ import numpy as np
 
 from polarization_app.application.geometry import AtomSelection, GeometryContext
 from polarization_app.domain.lattice import LatticeSearchRegion, build_lattice_points, direction_from_spherical_angles
+from polarization_app.physics.boundary_reflection import BoundaryPointResult, BoundaryReflectionCurves
 
 
 @dataclass(frozen=True)
@@ -73,6 +74,60 @@ def draw_spin_plots(sum_axis, spin_axis, energies_eV: np.ndarray, spin_curves: d
     spin_axis.set_ylabel("P↑ − P↓")
     spin_axis.grid(True, which="both")
     spin_axis.legend()
+
+
+def draw_boundary_utility_plots(
+    reflection_axis,
+    angle_axis,
+    curves: BoundaryReflectionCurves,
+    selected_point: BoundaryPointResult,
+) -> None:
+    reflection_axis.clear()
+    reflection_axis.set_title("Отражение от границы раздела")
+    reflection_axis.plot(curves.energies_eV, curves.reflection_coefficient, label="R")
+    reflection_axis.plot(
+        curves.energies_eV,
+        curves.reflection_probability_estimate,
+        label="R² (оценка вероятности)",
+        linestyle="--",
+        alpha=0.85,
+    )
+    reflection_axis.scatter(
+        [selected_point.energy_eV],
+        [selected_point.reflection_coefficient],
+        s=36,
+        c="#cf2f2f",
+        zorder=3,
+    )
+    reflection_axis.set_xlabel("Энергия, эВ")
+    reflection_axis.set_ylabel("Коэффициент")
+    reflection_axis.grid(True, which="both")
+    reflection_axis.legend()
+
+    angle_axis.clear()
+    angle_axis.set_title("Угол после прохождения через границу")
+    finite_mask = np.isfinite(curves.transmission_angle_deg)
+    if np.any(finite_mask):
+        angle_axis.plot(
+            curves.energies_eV[finite_mask],
+            curves.transmission_angle_deg[finite_mask],
+            label="β",
+            color="#2f7f3f",
+        )
+    if selected_point.transmission_angle_deg is not None:
+        angle_axis.scatter(
+            [selected_point.energy_eV],
+            [selected_point.transmission_angle_deg],
+            s=36,
+            c="#cf2f2f",
+            zorder=3,
+        )
+    angle_axis.set_xlabel("Энергия, эВ")
+    angle_axis.set_ylabel("β, °")
+    angle_axis.grid(True, which="both")
+    handles, labels = angle_axis.get_legend_handles_labels()
+    if handles:
+        angle_axis.legend()
 
 
 def build_geometry_preview_data(
@@ -451,6 +506,7 @@ __all__ = [
     "zoom_3d_axis",
     "zoom_axis_around_point",
     "draw_spin_plots",
+    "draw_boundary_utility_plots",
     "build_geometry_preview_data",
     "draw_geometry_preview",
     "capture_view_limits",

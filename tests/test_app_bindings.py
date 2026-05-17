@@ -85,6 +85,21 @@ class AppBindingsTestCase(unittest.TestCase):
                 self.assertEqual(len(self.app.left_scheduled_calls), left_before)
                 self.assertEqual(len(self.app.right_scheduled_calls), right_before + 1)
 
+    def test_boundary_controls_do_not_trigger_main_recalc(self):
+        actions = [
+            ("boundary_alpha", lambda: self.app.boundary_alpha_deg.set(self.app.boundary_alpha_deg.get() + 1.0)),
+            ("boundary_A", lambda: self.app.boundary_work_function.set(self.app.boundary_work_function.get() + 0.2)),
+            ("boundary_E", lambda: self.app.boundary_energy_point.set(self.app.boundary_energy_point.get() + 5.0)),
+        ]
+
+        for label, action in actions:
+            with self.subTest(control=label):
+                left_before = len(self.app.left_scheduled_calls)
+                right_before = len(self.app.right_scheduled_calls)
+                action()
+                self.assertEqual(len(self.app.left_scheduled_calls), left_before)
+                self.assertEqual(len(self.app.right_scheduled_calls), right_before)
+
     def test_auto_disabled_blocks_auto_recalc_for_non_orbital_controls(self):
         self.app.auto.set(False)
         self.app.left_scheduled_calls.clear()
