@@ -178,6 +178,20 @@ def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, 
     handles, labels = diagnostic_axis.get_legend_handles_labels()
     step_handles, step_labels = steps_axis.get_legend_handles_labels()
     diagnostic_axis.legend(handles + step_handles, labels + step_labels, loc="best")
+    if "converged" in frame:
+        failed_count = int((~frame["converged"].astype(bool)).sum())
+        if failed_count:
+            diagnostic_axis.text(
+                0.02,
+                0.95,
+                f"Ошибок в точках: {failed_count}. Подробности в сводке.",
+                transform=diagnostic_axis.transAxes,
+                va="top",
+                ha="left",
+                fontsize=9,
+                color="#9a3412",
+                bbox={"facecolor": "#fff7ed", "edgecolor": "#fdba74", "pad": 4},
+            )
 
 
 def build_geometry_preview_data(

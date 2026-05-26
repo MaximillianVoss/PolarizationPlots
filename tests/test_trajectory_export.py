@@ -7,6 +7,7 @@ from xml.etree import ElementTree as ET
 
 from polarization_app.application.trajectory import (
     TRAJECTORY_SWEEP_ENERGY,
+    TRAJECTORY_SWEEP_IMPACT,
     TrajectorySweepRequest,
     execute_trajectory_sweep,
     trajectory_export_metadata,
@@ -50,6 +51,34 @@ class TrajectoryExportTestCase(unittest.TestCase):
             with zipfile.ZipFile(exported["xlsx"]) as archive:
                 self.assertIn("xl/worksheets/sheet1.xml", archive.namelist())
                 self.assertIn("xl/worksheets/sheet2.xml", archive.namelist())
+
+    def test_export_failed_rows_without_nan_literals(self):
+        result = execute_trajectory_sweep(
+            TrajectorySweepRequest(
+                sweep_mode=TRAJECTORY_SWEEP_IMPACT,
+                point_count=2,
+                atomic_number=29.0,
+                energy_eV=100.0,
+                impact_min_ang=0.8,
+                impact_max_ang=11.0,
+                r0_ang=10.0,
+                angle_step_deg=3.0,
+            )
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exported = export_trajectory_bundle(
+                Path(tmpdir) / "trajectory",
+                frame=result.frame,
+                metadata=trajectory_export_metadata(result),
+            )
+
+            json_payload = json.loads(exported["json"].read_text(encoding="utf-8"))
+            failed_row = json_payload["rows"][1]
+            self.assertIsNone(failed_row["phase_rad"])
+            with zipfile.ZipFile(exported["xlsx"]) as archive:
+                sheet_xml = archive.read("xl/worksheets/sheet1.xml").decode("utf-8")
+            self.assertNotIn(">nan<", sheet_xml.lower())
 
 
 if __name__ == "__main__":

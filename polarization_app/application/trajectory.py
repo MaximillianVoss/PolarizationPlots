@@ -45,7 +45,7 @@ class TrajectorySweepRequest:
     energy_min_eV: float = 10.0
     energy_max_eV: float = 1000.0
     impact_parameter_ang: float = 0.8
-    impact_min_ang: float = 0.2
+    impact_min_ang: float = 0.3
     impact_max_ang: float = 2.0
     r0_ang: float = 10.0
     angle_step_deg: float = 1.0
@@ -132,17 +132,30 @@ def _compute_sweep_row(
 ) -> dict[str, object]:
     energy_eV, impact_parameter_ang, angle_step_deg = _resolve_point_inputs(request, float(value))
     point_started = perf_counter()
-    trajectory = compute_atom_trajectory_phase(
-        energy_eV=energy_eV,
-        mass_amu=request.mass_amu,
-        atomic_number=request.atomic_number,
-        impact_parameter_ang=impact_parameter_ang,
-        r0_ang=request.r0_ang,
-        angle_step_rad=float(np.deg2rad(angle_step_deg)),
-        b_bohr=request.b_bohr,
-        min_steps=request.min_steps,
-        max_refinements=request.max_refinements,
-    )
+    try:
+        trajectory = compute_atom_trajectory_phase(
+            energy_eV=energy_eV,
+            mass_amu=request.mass_amu,
+            atomic_number=request.atomic_number,
+            impact_parameter_ang=impact_parameter_ang,
+            r0_ang=request.r0_ang,
+            angle_step_rad=float(np.deg2rad(angle_step_deg)),
+            b_bohr=request.b_bohr,
+            min_steps=request.min_steps,
+            max_refinements=request.max_refinements,
+        )
+    except Exception as ex:
+        return _failed_sweep_row(
+            request=request,
+            value=value,
+            magnetic_m=magnetic_m,
+            energy_eV=energy_eV,
+            impact_parameter_ang=impact_parameter_ang,
+            angle_step_deg=angle_step_deg,
+            error=ex,
+            runtime_ms=(perf_counter() - point_started) * 1000.0,
+        )
+
     runtime_ms = (perf_counter() - point_started) * 1000.0
     p1, p2 = compute_atom_probabilities(
         np.asarray([trajectory.phase_rad], dtype=float),
@@ -181,6 +194,73 @@ def _compute_sweep_row(
         "p_flip_initial_down": float(1.0 - p2[0]),
         "runtime_ms": runtime_ms,
     }
+
+
+def _failed_sweep_row(
+    *,
+    request: TrajectorySweepRequest,
+    value: float,
+    magnetic_m: int,
+    energy_eV: float,
+    impact_parameter_ang: float,
+    angle_step_deg: float,
+    error: Exception,
+    runtime_ms: float,
+) -> dict[str, object]:
+    return {
+        "sweep_parameter": request.sweep_mode,
+        "sweep_value": float(value),
+        "energy_eV": float(energy_eV),
+        "mass_amu": float(request.mass_amu),
+        "speed_m_per_s": np.nan,
+        "speed_au": np.nan,
+        "atomic_number": float(request.atomic_number),
+        "impact_parameter_ang": float(impact_parameter_ang),
+        "r0_ang": float(request.r0_ang),
+        "b_bohr": float(request.b_bohr),
+        "angle_step_deg": float(angle_step_deg),
+        "r_min_ang": np.nan,
+        "theta_rad": np.nan,
+        "theta_deg": np.nan,
+        "trajectory_phi_rad": np.nan,
+        "trajectory_phi_deg": np.nan,
+        "phase_rad": np.nan,
+        "steps": np.nan,
+        "dt_initial_au": np.nan,
+        "dt_final_au": np.nan,
+        "refinements": np.nan,
+        "converged": False,
+        "status": _format_point_error(error, request),
+        "orbital_l": int(request.orbital_l),
+        "magnetic_m": int(magnetic_m),
+        "p_no_flip_initial_up": np.nan,
+        "p_no_flip_initial_down": np.nan,
+        "p_flip_initial_up": np.nan,
+        "p_flip_initial_down": np.nan,
+        "runtime_ms": float(runtime_ms),
+    }
+
+
+def _format_point_error(error: Exception, request: TrajectorySweepRequest) -> str:
+    message = str(error)
+    if "max_steps" in message or "dθ" in message:
+        if request.sweep_mode == TRAJECTORY_SWEEP_ANGLE_STEP:
+            return (
+                f"{message} Подсказка: увеличьте нижнюю границу «dθ min (°)» "
+                "или верхнюю границу «dθ max (°)» для диапазона шага."
+            )
+        if request.sweep_mode == TRAJECTORY_SWEEP_IMPACT:
+            return (
+                f"{message} Подсказка: поднимите «r_п min (Å)» до 0.25-0.3 Å "
+                "или увеличьте «dθ фикс. (°)»."
+            )
+        return (
+            f"{message} Подсказка: увеличьте ползунок «dθ фикс. (°)» "
+            "например до 2-5°, либо поднимите «r_п min (Å)», если сбой возникает на малых r_п."
+        )
+    if "r0" in message or "r_п" in message:
+        return f"{message} Подсказка: проверьте «r0 (Å)» и диапазон «r_п min/max (Å)»."
+    return message
 
 
 def _build_sweep_values(request: TrajectorySweepRequest) -> np.ndarray:

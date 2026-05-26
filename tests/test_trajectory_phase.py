@@ -108,6 +108,25 @@ class TrajectorySweepTestCase(unittest.TestCase):
 
         np.testing.assert_allclose(result.frame["impact_parameter_ang"].to_numpy(), np.array([0.5, 0.7, 0.9]))
 
+    def test_failed_sweep_point_keeps_remaining_results(self):
+        result = execute_trajectory_sweep(
+            TrajectorySweepRequest(
+                sweep_mode=TRAJECTORY_SWEEP_IMPACT,
+                point_count=2,
+                atomic_number=29.0,
+                energy_eV=100.0,
+                impact_min_ang=0.8,
+                impact_max_ang=11.0,
+                r0_ang=10.0,
+                angle_step_deg=3.0,
+            )
+        )
+
+        self.assertEqual(len(result.frame), 2)
+        self.assertTrue(bool(result.frame.iloc[0]["converged"]))
+        self.assertFalse(bool(result.frame.iloc[1]["converged"]))
+        self.assertIn("r0", result.frame.iloc[1]["status"])
+
     def test_parallel_sweep_matches_sequential_values(self):
         request_kwargs = {
             "sweep_mode": TRAJECTORY_SWEEP_ENERGY,

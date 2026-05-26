@@ -207,10 +207,10 @@ class App(tk.Tk):
         self.trajectory_Emin = tk.DoubleVar(value=100.0)
         self.trajectory_Emax = tk.DoubleVar(value=1000.0)
         self.trajectory_impact = tk.DoubleVar(value=0.8)
-        self.trajectory_impact_min = tk.DoubleVar(value=0.2)
+        self.trajectory_impact_min = tk.DoubleVar(value=0.3)
         self.trajectory_impact_max = tk.DoubleVar(value=2.0)
         self.trajectory_r0 = tk.DoubleVar(value=10.0)
-        self.trajectory_angle_step_deg = tk.DoubleVar(value=1.0)
+        self.trajectory_angle_step_deg = tk.DoubleVar(value=3.0)
         self.trajectory_angle_step_min_deg = tk.DoubleVar(value=0.1)
         self.trajectory_angle_step_max_deg = tk.DoubleVar(value=5.0)
         self.trajectory_b_bohr = tk.DoubleVar(value=DEFAULT_THOMAS_FERMI_B_BOHR)
@@ -702,7 +702,7 @@ class App(tk.Tk):
             0.05,
             5.0,
             current_row,
-            description="Нижняя граница параметра удара для sweep по r_п",
+            description="Нижняя граница параметра удара для sweep по r_п; при max_steps поднимите до 0.25-0.3 Å",
         ); current_row += 1
         self._make_slider(
             section,
@@ -729,7 +729,7 @@ class App(tk.Tk):
             0.1,
             5.0,
             current_row,
-            description="Угловой шаг интегрирования; меньше шаг точнее, но медленнее",
+            description="Угловой шаг интегрирования; если видите max_steps, увеличьте этот ползунок до 2-5°",
         ); current_row += 1
         self._make_slider(
             section,
@@ -1685,9 +1685,16 @@ class App(tk.Tk):
         )
         self.trajectory_canvas.draw_idle()
         self._set_text_output(self.trajectory_output, self._format_trajectory_summary(result))
-        self.status_text.set(
-            f"Траекторный расчёт готов: {len(result.frame)} точек, {result.elapsed_ms:.0f} мс."
-        )
+        converged_count = int(result.frame["converged"].sum())
+        if converged_count == len(result.frame):
+            self.status_text.set(
+                f"Траекторный расчёт готов: {len(result.frame)} точек, {result.elapsed_ms:.0f} мс."
+            )
+        else:
+            self.status_text.set(
+                f"Траекторный расчёт готов с ошибками: {converged_count}/{len(result.frame)} точек, "
+                f"{result.elapsed_ms:.0f} мс."
+            )
 
     def _display_trajectory_error(self, error: Exception) -> None:
         self._latest_trajectory_payload = None
@@ -1736,14 +1743,34 @@ class App(tk.Tk):
     def _format_trajectory_summary(self, result: TrajectorySweepResult) -> str:
         frame = result.frame
         request = result.request
-        phase_values = frame["phase_rad"].to_numpy(dtype=float)
-        theta_values = frame["theta_deg"].to_numpy(dtype=float)
-        phi_values = frame["trajectory_phi_deg"].to_numpy(dtype=float)
-        steps_values = frame["steps"].to_numpy(dtype=float)
-        r_min_values = frame["r_min_ang"].to_numpy(dtype=float)
-        refinements_max = int(frame["refinements"].max())
+        converged_mask = frame["converged"].astype(bool).to_numpy()
         converged_count = int(frame["converged"].sum())
-        last = frame.iloc[-1]
+        failed_count = len(frame) - converged_count
+        successful_frame = frame[converged_mask]
+        has_success = not successful_frame.empty
+        last = successful_frame.iloc[-1] if has_success else frame.iloc[-1]
+        last_label = "Последняя успешная точка" if has_success else "Последняя точка"
+
+        def value_range(column: str, suffix: str = "") -> str:
+            values = frame[column].to_numpy(dtype=float)
+            finite_values = values[np.isfinite(values)]
+            if finite_values.size == 0:
+                return "нет успешных точек"
+            return f"{float(np.nanmin(finite_values)):.6g}{suffix} .. {float(np.nanmax(finite_values)):.6g}{suffix}"
+
+        steps_values = frame["steps"].to_numpy(dtype=float)
+        finite_steps = steps_values[np.isfinite(steps_values)]
+        if finite_steps.size:
+            steps_range = f"{int(np.nanmin(finite_steps))} .. {int(np.nanmax(finite_steps))}"
+        else:
+            steps_range = "нет успешных точек"
+        refinements_values = frame["refinements"].to_numpy(dtype=float)
+        finite_refinements = refinements_values[np.isfinite(refinements_values)]
+        refinements_text = str(int(np.nanmax(finite_refinements))) if finite_refinements.size else "нет"
+        error_text = ""
+        if failed_count:
+            failed_status = str(frame.loc[~frame["converged"].astype(bool), "status"].iloc[0])
+            error_text = f"Ошибок: {failed_count}. Первая ошибка: {failed_status}\n"
 
         return (
             "[Траекторный расчёт]\n"
@@ -1752,16 +1779,16 @@ class App(tk.Tk):
             f"r0={request.r0_ang:.6g} Å, min steps={request.min_steps}, max refinements={request.max_refinements}\n"
             f"L={request.orbital_l}, M={'random' if request.random_m else request.magnetic_m}\n"
             "\n"
-            f"ϕ: {float(np.nanmin(phase_values)):.6g} .. {float(np.nanmax(phase_values)):.6g} рад\n"
-            f"θ: {float(np.nanmin(theta_values)):.6g}° .. {float(np.nanmax(theta_values)):.6g}°\n"
-            f"φ: {float(np.nanmin(phi_values)):.6g}° .. {float(np.nanmax(phi_values)):.6g}°\n"
-            f"r_min: {float(np.nanmin(r_min_values)):.6g} .. {float(np.nanmax(r_min_values)):.6g} Å\n"
-            f"steps: {int(np.nanmin(steps_values))} .. {int(np.nanmax(steps_values))}, "
-            f"max уточнений dt: {refinements_max}\n"
+            f"ϕ: {value_range('phase_rad', ' рад')}\n"
+            f"θ: {value_range('theta_deg', '°')}\n"
+            f"φ: {value_range('trajectory_phi_deg', '°')}\n"
+            f"r_min: {value_range('r_min_ang', ' Å')}\n"
+            f"steps: {steps_range}, max уточнений dt: {refinements_text}\n"
             f"Сошлось по правилу steps >= {request.min_steps}: {converged_count}/{len(frame)}\n"
+            f"{error_text}"
             f"Время расчёта: {result.elapsed_ms:.3g} мс\n"
             "\n"
-            "Последняя точка:\n"
+            f"{last_label}:\n"
             f"E={float(last['energy_eV']):.6g} эВ, r_п={float(last['impact_parameter_ang']):.6g} Å, "
             f"dθ={float(last['angle_step_deg']):.6g}°\n"
             f"ϕ={float(last['phase_rad']):.6g} рад, θ={float(last['theta_deg']):.6g}°, "

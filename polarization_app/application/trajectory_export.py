@@ -86,7 +86,9 @@ def _write_xlsx(path: Path, frame: pd.DataFrame, metadata: dict[str, object]) ->
 
 def _json_value(value: object) -> object:
     if isinstance(value, np.generic):
-        return value.item()
+        return _json_value(value.item())
+    if isinstance(value, float) and not np.isfinite(value):
+        return None
     if isinstance(value, (np.ndarray, list, tuple)):
         return [_json_value(item) for item in value]
     return value
@@ -146,7 +148,9 @@ def _xlsx_row_xml(row_index: int, values: list[object]) -> str:
     cells = []
     for column_index, value in enumerate(values, start=1):
         reference = f"{_excel_column_name(column_index)}{row_index}"
-        if isinstance(value, str):
+        if _is_blank_cell(value):
+            cells.append(f'<c r="{reference}"/>')
+        elif isinstance(value, str):
             cells.append(f'<c r="{reference}" t="inlineStr"><is><t>{escape(value)}</t></is></c>')
         elif isinstance(value, (bool, np.bool_)):
             cells.append(f'<c r="{reference}" t="b"><v>{int(bool(value))}</v></c>')
@@ -167,10 +171,20 @@ def _stringify(value: object) -> str:
     if isinstance(value, np.generic):
         value = value.item()
     if isinstance(value, float):
+        if not np.isfinite(value):
+            return ""
         return f"{value:.16g}"
     if isinstance(value, (list, tuple)):
         return json.dumps([_json_value(item) for item in value], ensure_ascii=False)
     return str(value)
+
+
+def _is_blank_cell(value: object) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, np.generic):
+        value = value.item()
+    return isinstance(value, float) and not np.isfinite(value)
 
 
 __all__ = ["export_trajectory_bundle"]
