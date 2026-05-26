@@ -9,11 +9,13 @@ class AppBindingProbe(App):
         self.left_direct_calls = 0
         self.left_scheduled_calls: list[int] = []
         self.right_scheduled_calls: list[int] = []
+        self.trajectory_scheduled_calls: list[int] = []
         super().__init__()
         self.withdraw()
         self.left_direct_calls = 0
         self.left_scheduled_calls.clear()
         self.right_scheduled_calls.clear()
+        self.trajectory_scheduled_calls.clear()
 
     def update_output_left(self) -> None:
         self.left_direct_calls += 1
@@ -23,6 +25,9 @@ class AppBindingProbe(App):
 
     def _schedule_right_update(self, delay_ms: int = 0) -> None:
         self.right_scheduled_calls.append(delay_ms)
+
+    def _schedule_trajectory_update(self, delay_ms: int = 0) -> None:
+        self.trajectory_scheduled_calls.append(delay_ms)
 
 
 class AppBindingsTestCase(unittest.TestCase):
@@ -99,6 +104,46 @@ class AppBindingsTestCase(unittest.TestCase):
                 action()
                 self.assertEqual(len(self.app.left_scheduled_calls), left_before)
                 self.assertEqual(len(self.app.right_scheduled_calls), right_before)
+
+    def test_trajectory_auto_schedules_only_trajectory_recalc(self):
+        self.app.trajectory_auto.set(True)
+        self.app.trajectory_scheduled_calls.clear()
+        left_before = len(self.app.left_scheduled_calls)
+        right_before = len(self.app.right_scheduled_calls)
+
+        self.app.trajectory_energy.set(self.app.trajectory_energy.get() + 10.0)
+
+        self.assertEqual(len(self.app.left_scheduled_calls), left_before)
+        self.assertEqual(len(self.app.right_scheduled_calls), right_before)
+        self.assertEqual(self.app.trajectory_scheduled_calls, [450])
+
+    def test_trajectory_controls_do_not_trigger_main_recalc(self):
+        actions = [
+            ("trajectory_Z", lambda: self.app.trajectory_Z.set(self.app.trajectory_Z.get() + 1.0)),
+            ("trajectory_mass", lambda: self.app.trajectory_mass_amu.set(self.app.trajectory_mass_amu.get() + 0.001)),
+            ("trajectory_E", lambda: self.app.trajectory_energy.set(self.app.trajectory_energy.get() + 10.0)),
+            ("trajectory_rp", lambda: self.app.trajectory_impact.set(self.app.trajectory_impact.get() + 0.1)),
+            ("trajectory_dtheta", lambda: self.app.trajectory_angle_step_deg.set(self.app.trajectory_angle_step_deg.get() + 0.1)),
+        ]
+
+        for label, action in actions:
+            with self.subTest(control=label):
+                left_before = len(self.app.left_scheduled_calls)
+                right_before = len(self.app.right_scheduled_calls)
+                action()
+                self.assertEqual(len(self.app.left_scheduled_calls), left_before)
+                self.assertEqual(len(self.app.right_scheduled_calls), right_before)
+
+    def test_trajectory_tab_has_scrollable_controls(self):
+        self.assertGreaterEqual(len(self.app._scrollable_control_canvases), 1)
+
+    def test_trajectory_controls_have_hints_and_tooltips(self):
+        tooltip_texts = [getattr(widget, "_tooltip_text", "") for widget in self.app._tooltip_targets]
+
+        self.assertTrue(any("Вертикальная прокрутка панели параметров" in text for text in tooltip_texts))
+        self.assertTrue(any("Заряд ядра атома" in text for text in tooltip_texts))
+        self.assertTrue(any("Масса частицы" in text for text in tooltip_texts))
+        self.assertTrue(any("Угловой шаг интегрирования" in text for text in tooltip_texts))
 
     def test_auto_disabled_blocks_auto_recalc_for_non_orbital_controls(self):
         self.app.auto.set(False)

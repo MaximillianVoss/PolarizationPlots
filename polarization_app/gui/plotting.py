@@ -84,14 +84,7 @@ def draw_boundary_utility_plots(
 ) -> None:
     reflection_axis.clear()
     reflection_axis.set_title("Отражение от границы раздела")
-    reflection_axis.plot(curves.energies_eV, curves.reflection_coefficient, label="R")
-    reflection_axis.plot(
-        curves.energies_eV,
-        curves.reflection_probability_estimate,
-        label="R² (оценка вероятности)",
-        linestyle="--",
-        alpha=0.85,
-    )
+    reflection_axis.plot(curves.energies_eV, curves.reflection_coefficient, label="R, коэффициент отражения")
     reflection_axis.scatter(
         [selected_point.energy_eV],
         [selected_point.reflection_coefficient],
@@ -111,7 +104,7 @@ def draw_boundary_utility_plots(
         angle_axis.plot(
             curves.energies_eV[finite_mask],
             curves.transmission_angle_deg[finite_mask],
-            label="β",
+            label="β после границы, угол прохождения",
             color="#2f7f3f",
         )
     if selected_point.transmission_angle_deg is not None:
@@ -128,6 +121,63 @@ def draw_boundary_utility_plots(
     handles, labels = angle_axis.get_legend_handles_labels()
     if handles:
         angle_axis.legend()
+
+
+def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, x_column: str, x_label: str) -> None:
+    x_values = frame[x_column].to_numpy(dtype=float)
+
+    phase_axis.clear()
+    phase_axis.set_title("Траекторная фаза")
+    phase_axis.plot(x_values, frame["phase_rad"].to_numpy(dtype=float), label="ϕ, фаза СОВ", color="#2f5597")
+    phase_axis.set_xlabel(x_label)
+    phase_axis.set_ylabel("ϕ, рад")
+    phase_axis.grid(True, which="both")
+    phase_axis.legend()
+
+    angle_axis.clear()
+    angle_axis.set_title("Углы после взаимодействия")
+    angle_axis.plot(x_values, frame["theta_deg"].to_numpy(dtype=float), label="θ, угол интегрирования", color="#2f7f3f")
+    angle_axis.plot(
+        x_values,
+        frame["trajectory_phi_deg"].to_numpy(dtype=float),
+        label="φ, угол траектории после взаимодействия",
+        color="#cf2f2f",
+    )
+    angle_axis.set_xlabel(x_label)
+    angle_axis.set_ylabel("угол, °")
+    angle_axis.grid(True, which="both")
+    angle_axis.legend()
+
+    diagnostic_axis.clear()
+    diagnostic_axis.set_title("r_min и число шагов")
+    diagnostic_axis.plot(
+        x_values,
+        frame["r_min_ang"].to_numpy(dtype=float),
+        label="r_min, минимальное сближение",
+        color="#8a5a00",
+    )
+    diagnostic_axis.set_xlabel(x_label)
+    diagnostic_axis.set_ylabel("r_min, Å")
+    diagnostic_axis.grid(True, which="both")
+
+    steps_axis = getattr(diagnostic_axis, "_trajectory_steps_axis", None)
+    if steps_axis is None or steps_axis.figure is not diagnostic_axis.figure:
+        steps_axis = diagnostic_axis.twinx()
+        diagnostic_axis._trajectory_steps_axis = steps_axis
+    else:
+        steps_axis.clear()
+    steps_axis.plot(
+        x_values,
+        frame["steps"].to_numpy(dtype=float),
+        label="steps, шаги интегрирования",
+        color="#6b4fa3",
+        linestyle="--",
+    )
+    steps_axis.set_ylabel("шаги")
+
+    handles, labels = diagnostic_axis.get_legend_handles_labels()
+    step_handles, step_labels = steps_axis.get_legend_handles_labels()
+    diagnostic_axis.legend(handles + step_handles, labels + step_labels, loc="best")
 
 
 def build_geometry_preview_data(

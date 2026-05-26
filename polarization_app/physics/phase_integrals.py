@@ -7,6 +7,11 @@ from typing import Callable, Literal
 import numpy as np
 import pandas as pd
 
+try:
+    from scipy.interpolate import CubicSpline
+except ImportError:  # pragma: no cover - exercised only in lean runtime environments
+    CubicSpline = None
+
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +35,9 @@ _THOMAS_FERMI_Y = np.array([
 
 ChiFunction = Callable[[np.ndarray, dict[str, float] | None], np.ndarray]
 
+_THOMAS_FERMI_SPLINE = CubicSpline(_THOMAS_FERMI_X, _THOMAS_FERMI_Y, bc_type="natural") if CubicSpline is not None else None
+_THOMAS_FERMI_SPLINE_DERIVATIVE = _THOMAS_FERMI_SPLINE.derivative() if _THOMAS_FERMI_SPLINE is not None else None
+
 
 def energy_to_speed_mps(energy_eV: np.ndarray) -> np.ndarray:
     energy_joule = np.asarray(energy_eV, dtype=float) * ELECTRON_CHARGE
@@ -45,6 +53,52 @@ def interpolate_thomas_fermi_chi(x: np.ndarray, params: dict[str, float] | None 
     del params
     x = np.asarray(x, dtype=float)
     return np.interp(x, _THOMAS_FERMI_X, _THOMAS_FERMI_Y, left=_THOMAS_FERMI_Y[0], right=_THOMAS_FERMI_Y[-1])
+
+
+def spline_thomas_fermi_chi(x: np.ndarray, params: dict[str, float] | None = None) -> np.ndarray:
+    del params
+    x = np.asarray(x, dtype=float)
+    if _THOMAS_FERMI_SPLINE is None:
+        values = interpolate_thomas_fermi_chi(x)
+        return np.where(x > _THOMAS_FERMI_X[-1], 0.0, values)
+    x_clipped = np.clip(x, _THOMAS_FERMI_X[0], _THOMAS_FERMI_X[-1])
+    values = np.asarray(_THOMAS_FERMI_SPLINE(x_clipped), dtype=float)
+    values = np.where(x > _THOMAS_FERMI_X[-1], 0.0, values)
+    return np.clip(values, 0.0, None)
+
+
+def scalar_spline_thomas_fermi_chi(x: float) -> float:
+    x_value = float(x)
+    if x_value > float(_THOMAS_FERMI_X[-1]):
+        return 0.0
+    x_clipped = min(max(x_value, float(_THOMAS_FERMI_X[0])), float(_THOMAS_FERMI_X[-1]))
+    if _THOMAS_FERMI_SPLINE is None:
+        return float(np.interp(x_clipped, _THOMAS_FERMI_X, _THOMAS_FERMI_Y))
+    return max(float(_THOMAS_FERMI_SPLINE(x_clipped)), 0.0)
+
+
+def spline_thomas_fermi_chi_derivative(x: np.ndarray, params: dict[str, float] | None = None) -> np.ndarray:
+    del params
+    x = np.asarray(x, dtype=float)
+    if _THOMAS_FERMI_SPLINE_DERIVATIVE is None:
+        x_clipped = np.clip(x, _THOMAS_FERMI_X[0], _THOMAS_FERMI_X[-1])
+        values = np.gradient(_THOMAS_FERMI_Y, _THOMAS_FERMI_X)
+        derivatives = np.interp(x_clipped, _THOMAS_FERMI_X, values, left=values[0], right=0.0)
+        return np.where(x > _THOMAS_FERMI_X[-1], 0.0, derivatives)
+    x_clipped = np.clip(x, _THOMAS_FERMI_X[0], _THOMAS_FERMI_X[-1])
+    values = np.asarray(_THOMAS_FERMI_SPLINE_DERIVATIVE(x_clipped), dtype=float)
+    return np.where(x > _THOMAS_FERMI_X[-1], 0.0, values)
+
+
+def scalar_spline_thomas_fermi_chi_derivative(x: float) -> float:
+    x_value = float(x)
+    if x_value > float(_THOMAS_FERMI_X[-1]):
+        return 0.0
+    x_clipped = min(max(x_value, float(_THOMAS_FERMI_X[0])), float(_THOMAS_FERMI_X[-1]))
+    if _THOMAS_FERMI_SPLINE_DERIVATIVE is None:
+        derivatives = np.gradient(_THOMAS_FERMI_Y, _THOMAS_FERMI_X)
+        return float(np.interp(x_clipped, _THOMAS_FERMI_X, derivatives, left=derivatives[0], right=0.0))
+    return float(_THOMAS_FERMI_SPLINE_DERIVATIVE(x_clipped))
 
 
 def exponential_chi(x: np.ndarray, params: dict[str, float] | None = None) -> np.ndarray:
@@ -523,6 +577,10 @@ def _matches_glob(filename: str, pattern: str) -> bool:
 energy_eV_to_speed_mps = energy_to_speed_mps
 speed_mps_to_energy_eV = speed_to_energy_eV
 chi_table_interp = interpolate_thomas_fermi_chi
+chi_table_spline = spline_thomas_fermi_chi
+chi_table_spline_derivative = spline_thomas_fermi_chi_derivative
+chi_table_spline_scalar = scalar_spline_thomas_fermi_chi
+chi_table_spline_derivative_scalar = scalar_spline_thomas_fermi_chi_derivative
 chi_default = exponential_chi
 compute_I_components = compute_phase_integral_components
 compute_grid_atoms = compute_phase_grid_for_atoms
@@ -535,6 +593,10 @@ __all__ = [
     "energy_to_speed_mps",
     "speed_to_energy_eV",
     "interpolate_thomas_fermi_chi",
+    "spline_thomas_fermi_chi",
+    "scalar_spline_thomas_fermi_chi",
+    "spline_thomas_fermi_chi_derivative",
+    "scalar_spline_thomas_fermi_chi_derivative",
     "exponential_chi",
     "compute_phase_integral_components",
     "compute_phase_grid_for_atoms",
@@ -543,6 +605,10 @@ __all__ = [
     "energy_eV_to_speed_mps",
     "speed_mps_to_energy_eV",
     "chi_table_interp",
+    "chi_table_spline",
+    "chi_table_spline_derivative",
+    "chi_table_spline_scalar",
+    "chi_table_spline_derivative_scalar",
     "chi_default",
     "compute_I_components",
     "compute_grid_atoms",

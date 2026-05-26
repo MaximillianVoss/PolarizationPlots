@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import os
 import tkinter as tk
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
@@ -23,6 +24,17 @@ from polarization_app.application.formulas import (
 )
 from polarization_app.application.geometry import GeometryContext, collect_atom_selection
 from polarization_app.application.spectrum_export import export_spectrum_bundle
+from polarization_app.application.trajectory import (
+    TRAJECTORY_AXIS_LABELS,
+    TRAJECTORY_SWEEP_BY_LABEL,
+    TRAJECTORY_SWEEP_ENERGY,
+    TRAJECTORY_SWEEP_LABELS,
+    TrajectorySweepRequest,
+    TrajectorySweepResult,
+    execute_trajectory_sweep,
+    trajectory_export_metadata,
+)
+from polarization_app.application.trajectory_export import export_trajectory_bundle
 from polarization_app.domain.lattice import LatticeSearchRegion, estimate_lattice_search_region
 from polarization_app.domain.transitions import build_transition_matrices
 from polarization_app.gui.plotting import (
@@ -31,6 +43,7 @@ from polarization_app.gui.plotting import (
     draw_boundary_utility_plots,
     draw_geometry_preview,
     draw_spin_plots,
+    draw_trajectory_sweep_plots,
     restore_view_limits,
     zoom_axis,
     zoom_3d_axis,
@@ -38,6 +51,7 @@ from polarization_app.gui.plotting import (
 )
 from polarization_app.physics.boundary_reflection import compute_boundary_point, compute_boundary_reflection_curves
 from polarization_app.physics.phase_integrals import exponential_chi, interpolate_thomas_fermi_chi
+from polarization_app.physics.trajectory_phase import DEFAULT_THOMAS_FERMI_B_BOHR, ELECTRON_MASS_AMU
 
 
 logger = logging.getLogger(__name__)
@@ -75,6 +89,56 @@ class PlotComputationResult:
     result: FormulaResult
 
 
+class Tooltip:
+    def __init__(self, widget, text: str, delay_ms: int = 450) -> None:
+        self.widget = widget
+        self.text = text
+        self.delay_ms = delay_ms
+        self._after_id: str | None = None
+        self._window: tk.Toplevel | None = None
+
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+        widget.bind("<ButtonPress>", self._hide, add="+")
+
+    def _schedule(self, _event=None) -> None:
+        self._cancel()
+        self._after_id = self.widget.after(self.delay_ms, self._show)
+
+    def _cancel(self) -> None:
+        if self._after_id is not None:
+            self.widget.after_cancel(self._after_id)
+            self._after_id = None
+
+    def _show(self) -> None:
+        if self._window is not None or not self.text:
+            return
+        x = self.widget.winfo_rootx() + 18
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 8
+        window = tk.Toplevel(self.widget)
+        window.wm_overrideredirect(True)
+        window.wm_geometry(f"+{x}+{y}")
+        label = tk.Label(
+            window,
+            text=self.text,
+            justify="left",
+            background="#ffffe8",
+            relief="solid",
+            borderwidth=1,
+            padx=6,
+            pady=4,
+            wraplength=320,
+        )
+        label.pack()
+        self._window = window
+
+    def _hide(self, _event=None) -> None:
+        self._cancel()
+        if self._window is not None:
+            self._window.destroy()
+            self._window = None
+
+
 def run_plot_calculation(request: PlotComputationRequest) -> PlotComputationResult:
     result = execute_formula_variant(
         formula_variant=request.formula_variant,
@@ -102,6 +166,11 @@ class App(tk.Tk):
         self.update_output_left()
         self.after(0, self.update_output_right)
         self.after(0, self._update_boundary_utility)
+        self._set_text_output(
+            self.trajectory_output,
+            "[Траекторный расчёт]\nНастройте параметры и нажмите «Рассчитать». "
+            "Если нужен пересчёт при движении ползунков, включите автопересчёт слева.\n",
+        )
 
     def _create_variables(self) -> None:
         self.a = tk.DoubleVar(value=4.75)
@@ -132,12 +201,33 @@ class App(tk.Tk):
         self.boundary_Emin = tk.DoubleVar(value=10.0)
         self.boundary_Emax = tk.DoubleVar(value=500.0)
         self.boundary_Npts = tk.IntVar(value=240)
+        self.trajectory_Z = tk.DoubleVar(value=29.0)
+        self.trajectory_mass_amu = tk.DoubleVar(value=ELECTRON_MASS_AMU)
+        self.trajectory_energy = tk.DoubleVar(value=100.0)
+        self.trajectory_Emin = tk.DoubleVar(value=100.0)
+        self.trajectory_Emax = tk.DoubleVar(value=1000.0)
+        self.trajectory_impact = tk.DoubleVar(value=0.8)
+        self.trajectory_impact_min = tk.DoubleVar(value=0.2)
+        self.trajectory_impact_max = tk.DoubleVar(value=2.0)
+        self.trajectory_r0 = tk.DoubleVar(value=10.0)
+        self.trajectory_angle_step_deg = tk.DoubleVar(value=1.0)
+        self.trajectory_angle_step_min_deg = tk.DoubleVar(value=0.1)
+        self.trajectory_angle_step_max_deg = tk.DoubleVar(value=5.0)
+        self.trajectory_b_bohr = tk.DoubleVar(value=DEFAULT_THOMAS_FERMI_B_BOHR)
+        self.trajectory_Npts = tk.IntVar(value=25)
+        self.trajectory_orbital_l = tk.IntVar(value=1)
+        self.trajectory_magnetic_m = tk.IntVar(value=0)
+        self.trajectory_random_m = tk.BooleanVar(value=False)
+        self.trajectory_sweep_label = tk.StringVar(value=TRAJECTORY_SWEEP_LABELS[TRAJECTORY_SWEEP_ENERGY])
+        self.trajectory_auto = tk.BooleanVar(value=False)
+        self.trajectory_parallel_workers = tk.IntVar(value=max(1, min(2, os.cpu_count() or 1)))
         self.status_text = tk.StringVar(value="Готово.")
         self.formula_hint_text = tk.StringVar(value="")
 
         self.geometry_output: tk.Text | None = None
         self.spectrum_output: tk.Text | None = None
         self.boundary_output: tk.Text | None = None
+        self.trajectory_output: tk.Text | None = None
         self.output: tk.Text | None = None
         self.n_auto_label: ttk.Label | None = None
         self.ax_sum = None
@@ -147,20 +237,34 @@ class App(tk.Tk):
         self.ax_geometry_xy = None
         self.ax_boundary_reflection = None
         self.ax_boundary_angle = None
+        self.ax_trajectory_phase = None
+        self.ax_trajectory_angle = None
+        self.ax_trajectory_diagnostics = None
         self.canvas: FigureCanvasTkAgg | None = None
         self.fig: Figure | None = None
         self.geometry_canvas: FigureCanvasTkAgg | None = None
         self.geometry_fig: Figure | None = None
         self.boundary_canvas: FigureCanvasTkAgg | None = None
         self.boundary_fig: Figure | None = None
+        self.trajectory_canvas: FigureCanvasTkAgg | None = None
+        self.trajectory_fig: Figure | None = None
         self._default_view_limits = None
         self._boundary_view_limits = None
+        self._trajectory_view_limits = None
         self._scheduled_left_after: str | None = None
         self._scheduled_right_after: str | None = None
+        self._scheduled_trajectory_after: str | None = None
         self._running_future: Future | None = None
+        self._running_trajectory_future: Future | None = None
         self._queued_request: PlotComputationRequest | None = None
+        self._queued_trajectory_request: TrajectorySweepRequest | None = None
         self._latest_plot_payload: PlotComputationResult | None = None
+        self._latest_trajectory_payload: TrajectorySweepResult | None = None
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="polarization")
+        self._trajectory_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="trajectory-ui")
+        self._scrollable_control_canvases: list[tk.Canvas] = []
+        self._active_scroll_canvas: tk.Canvas | None = None
+        self._tooltip_targets: list[tk.Widget] = []
         self._closing = False
         self._geometry_change_in_progress = False
 
@@ -174,13 +278,19 @@ class App(tk.Tk):
         geometry_tab = ttk.Frame(notebook)
         spectrum_tab = ttk.Frame(notebook)
         boundary_tab = ttk.Frame(notebook)
+        trajectory_tab = ttk.Frame(notebook)
         notebook.add(geometry_tab, text="Геометрия и переходы")
         notebook.add(spectrum_tab, text="Спектры и формулы")
         notebook.add(boundary_tab, text="Граница раздела")
+        notebook.add(trajectory_tab, text="Траекторный расчёт")
 
         self._build_geometry_tab(geometry_tab)
         self._build_spectrum_tab(spectrum_tab)
         self._build_boundary_tab(boundary_tab)
+        self._build_trajectory_tab(trajectory_tab)
+        self.bind_all("<MouseWheel>", self._on_controls_mousewheel)
+        self.bind_all("<Button-4>", self._on_controls_mousewheel)
+        self.bind_all("<Button-5>", self._on_controls_mousewheel)
 
         ttk.Label(self, textvariable=self.status_text, anchor="w", padding=(8, 4)).grid(row=1, column=0, sticky="ew")
 
@@ -258,6 +368,29 @@ class App(tk.Tk):
             output_panel,
             title="Сводка по выбранной энергии",
             height=10,
+        )
+
+    def _build_trajectory_tab(self, panel) -> None:
+        panel.columnconfigure(0, weight=0, minsize=CONTROL_PANEL_WIDTH)
+        panel.columnconfigure(1, weight=1)
+        panel.rowconfigure(0, weight=1)
+
+        controls = self._build_scrollable_control_panel(panel)
+        self._build_trajectory_section(controls, row=0)
+
+        body = ttk.Panedwindow(panel, orient=tk.VERTICAL)
+        body.grid(row=0, column=1, sticky="nsew", padx=(0, 6), pady=6)
+
+        plot_panel = ttk.Frame(body, padding=6)
+        output_panel = ttk.Frame(body, padding=6)
+        body.add(plot_panel, weight=4)
+        body.add(output_panel, weight=2)
+
+        self._build_trajectory_plot_area(plot_panel)
+        self.trajectory_output = self._build_text_output_panel(
+            output_panel,
+            title="Сводка траекторного расчёта",
+            height=12,
         )
 
     def _build_geometry_section(self, parent, row: int) -> None:
@@ -440,6 +573,234 @@ class App(tk.Tk):
             row=current_row, column=0, sticky="w", pady=(8, 0)
         )
 
+    def _build_trajectory_section(self, parent, row: int) -> None:
+        section = ttk.LabelFrame(parent, text="Траекторный расчёт одного атома", padding=10)
+        section.grid(row=row, column=0, sticky="ew")
+        section.columnconfigure(1, weight=1)
+
+        current_row = 0
+        ttk.Label(
+            section,
+            text=(
+                "Расчёт из алгоритма 2.0: r_min, θ, φ, фаза ϕ и вероятности после СОВ. "
+                "Текущие спектры при этом не изменяются."
+            ),
+            foreground="#555",
+            wraplength=CONTROL_WRAP_LENGTH,
+            justify="left",
+        ).grid(row=current_row, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        current_row += 1
+
+        sweep_label = ttk.Label(section, text="Что меняем")
+        sweep_label.grid(row=current_row, column=0, sticky="w", pady=(6, 0))
+        self._attach_tooltip(
+            sweep_label,
+            "Выбирает параметр для оси X. Остальные параметры берутся из фиксированных ползунков.",
+        )
+        sweep_box = ttk.Combobox(
+            section,
+            textvariable=self.trajectory_sweep_label,
+            values=list(TRAJECTORY_SWEEP_LABELS.values()),
+            state="readonly",
+            width=30,
+        )
+        sweep_box.grid(row=current_row, column=1, sticky="ew", padx=(8, 0), pady=(6, 0))
+        self._attach_tooltip(
+            sweep_box,
+            "Выбирает параметр для оси X. Остальные параметры берутся из фиксированных ползунков.",
+        )
+        current_row += 1
+
+        actions = ttk.Frame(section)
+        actions.grid(row=current_row, column=0, columnspan=2, sticky="ew", pady=(8, 6))
+        ttk.Button(actions, text="Рассчитать", command=self._update_trajectory_utility).pack(side="left")
+        ttk.Button(actions, text="Экспорт JSON/XML/XLSX", command=self._export_trajectory_data).pack(side="left", padx=(8, 0))
+        current_row += 1
+
+        auto_check = ttk.Checkbutton(
+            section,
+            text="Автопересчёт после изменения параметров",
+            variable=self.trajectory_auto,
+        )
+        auto_check.grid(row=current_row, column=0, columnspan=2, sticky="w", pady=(0, 4))
+        self._attach_tooltip(auto_check, "Если включено, расчёт запускается автоматически после изменения параметров.")
+        current_row += 1
+
+        self._make_slider(
+            section,
+            "Потоки расчёта",
+            self.trajectory_parallel_workers,
+            1,
+            max(1, min(8, os.cpu_count() or 1)),
+            current_row,
+            description="Сколько потоков использовать для параллельного расчёта точек диапазона",
+            resolution=1,
+        ); current_row += 1
+
+        ttk.Separator(section, orient="horizontal").grid(row=current_row, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        current_row += 1
+
+        self._make_slider(
+            section,
+            "Z",
+            self.trajectory_Z,
+            1,
+            92,
+            current_row,
+            description="Заряд ядра атома в потенциале Томаса-Ферми",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "Масса (а.е.м)",
+            self.trajectory_mass_amu,
+            0.0001,
+            5.0,
+            current_row,
+            description="Масса частицы в атомных единицах массы; электрон по умолчанию 0.000549 а.е.м",
+            resolution=0.0001,
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "E фикс. (эВ)",
+            self.trajectory_energy,
+            1.0,
+            5000.0,
+            current_row,
+            description="Энергия одной расчётной точки; используется, когда ось X не энергия",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "Emin (эВ)",
+            self.trajectory_Emin,
+            1.0,
+            5000.0,
+            current_row,
+            description="Нижняя граница диапазона энергии при sweep по E",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "Emax (эВ)",
+            self.trajectory_Emax,
+            10.0,
+            10000.0,
+            current_row,
+            description="Верхняя граница диапазона энергии при sweep по E",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "r_п фикс. (Å)",
+            self.trajectory_impact,
+            0.05,
+            5.0,
+            current_row,
+            description="Параметр удара r_п; используется, когда ось X не r_п",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "r_п min (Å)",
+            self.trajectory_impact_min,
+            0.05,
+            5.0,
+            current_row,
+            description="Нижняя граница параметра удара для sweep по r_п",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "r_п max (Å)",
+            self.trajectory_impact_max,
+            0.1,
+            8.0,
+            current_row,
+            description="Верхняя граница параметра удара для sweep по r_п",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "r0 (Å)",
+            self.trajectory_r0,
+            1.0,
+            40.0,
+            current_row,
+            description="Начальное расстояние интегрирования; должно быть больше r_п и r_min",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "dθ фикс. (°)",
+            self.trajectory_angle_step_deg,
+            0.1,
+            5.0,
+            current_row,
+            description="Угловой шаг интегрирования; меньше шаг точнее, но медленнее",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "dθ min (°)",
+            self.trajectory_angle_step_min_deg,
+            0.1,
+            5.0,
+            current_row,
+            description="Нижняя граница шага dθ для sweep по точности интегрирования",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "dθ max (°)",
+            self.trajectory_angle_step_max_deg,
+            0.1,
+            5.0,
+            current_row,
+            description="Верхняя граница шага dθ для sweep по точности интегрирования",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "b Thomas-Fermi (a0)",
+            self.trajectory_b_bohr,
+            0.2,
+            2.0,
+            current_row,
+            description="Масштаб экранирования b в потенциале U(r), в атомных радиусах a0",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "N точек",
+            self.trajectory_Npts,
+            1,
+            300,
+            current_row,
+            description="Количество расчётных точек на выбранной оси X",
+            resolution=1,
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "L",
+            self.trajectory_orbital_l,
+            0,
+            10,
+            current_row,
+            description="Орбитальное квантовое число для матрицы переходов",
+            resolution=1,
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "M",
+            self.trajectory_magnetic_m,
+            -10,
+            10,
+            current_row,
+            description="Магнитное квантовое число; физически должно лежать в пределах -L..L",
+            resolution=1,
+        ); current_row += 1
+
+        random_m_check = ttk.Checkbutton(
+            section,
+            text="Случайный M для каждой точки",
+            variable=self.trajectory_random_m,
+        )
+        random_m_check.grid(row=current_row, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self._attach_tooltip(
+            random_m_check,
+            "Если включено, для каждой точки M выбирается случайно из допустимого диапазона.",
+        )
+        current_row += 1
+
     def _build_spin_plot_area(self, panel) -> None:
         panel.columnconfigure(0, weight=1)
         panel.rowconfigure(1, weight=1)
@@ -474,6 +835,26 @@ class App(tk.Tk):
         self.boundary_canvas = FigureCanvasTkAgg(self.boundary_fig, master=panel)
         self.boundary_canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew")
         self.boundary_canvas.mpl_connect("scroll_event", self._on_boundary_plot_scroll)
+
+    def _build_trajectory_plot_area(self, panel) -> None:
+        panel.columnconfigure(0, weight=1)
+        panel.rowconfigure(1, weight=1)
+
+        zoom_bar = ttk.Frame(panel)
+        zoom_bar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        ttk.Label(zoom_bar, text="Колесо мыши масштабирует графики траекторного расчёта.").pack(side="left")
+        ttk.Button(zoom_bar, text="Сбросить масштаб", command=self._reset_trajectory_zoom).pack(side="right")
+
+        self.trajectory_fig = Figure(figsize=(7.4, 6.4), dpi=100)
+        self.ax_trajectory_phase = self.trajectory_fig.add_subplot(311)
+        self.ax_trajectory_angle = self.trajectory_fig.add_subplot(312)
+        self.ax_trajectory_diagnostics = self.trajectory_fig.add_subplot(313)
+        for axis in (self.ax_trajectory_phase, self.ax_trajectory_angle, self.ax_trajectory_diagnostics):
+            axis.grid(True, which="both")
+
+        self.trajectory_canvas = FigureCanvasTkAgg(self.trajectory_fig, master=panel)
+        self.trajectory_canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew")
+        self.trajectory_canvas.mpl_connect("scroll_event", self._on_trajectory_plot_scroll)
 
     def _build_geometry_preview_area(self, panel) -> None:
         panel.columnconfigure(0, weight=1)
@@ -521,6 +902,39 @@ class App(tk.Tk):
         text_scrollbar.grid(row=0, column=1, sticky="ns")
         output.configure(yscrollcommand=text_scrollbar.set)
         return output
+
+    def _build_scrollable_control_panel(self, parent) -> ttk.Frame:
+        container = ttk.Frame(parent, padding=(6, 6, 6, 6), width=CONTROL_PANEL_WIDTH)
+        container.grid(row=0, column=0, sticky="nsw")
+        container.rowconfigure(0, weight=1)
+        container.columnconfigure(0, weight=1)
+
+        canvas = tk.Canvas(container, width=CONTROL_PANEL_WIDTH - 20, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        self._attach_tooltip(scrollbar, "Вертикальная прокрутка панели параметров траекторного расчёта.")
+
+        content = ttk.Frame(canvas)
+        content.columnconfigure(0, weight=1)
+        window_id = canvas.create_window((0, 0), window=content, anchor="nw")
+
+        def update_scroll_region(_event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def update_content_width(event):
+            canvas.itemconfigure(window_id, width=event.width)
+
+        content.bind("<Configure>", update_scroll_region)
+        canvas.bind("<Configure>", update_content_width)
+        canvas.bind("<Enter>", lambda _event: self._active_scroll_canvas_set(canvas))
+        canvas.bind("<Leave>", lambda _event: self._active_scroll_canvas_set(None))
+        content.bind("<Enter>", lambda _event: self._active_scroll_canvas_set(canvas))
+        content.bind("<Leave>", lambda _event: self._active_scroll_canvas_set(None))
+
+        self._scrollable_control_canvases.append(canvas)
+        return content
 
     def _build_zoom_toolbar(self, panel, row: int) -> None:
         zoom_bar = ttk.Frame(panel)
@@ -579,6 +993,38 @@ class App(tk.Tk):
         ):
             variable.trace_add("write", lambda *_: self._update_boundary_utility())
 
+        for variable in (
+            self.trajectory_Z,
+            self.trajectory_mass_amu,
+            self.trajectory_energy,
+            self.trajectory_Emin,
+            self.trajectory_Emax,
+            self.trajectory_impact,
+            self.trajectory_impact_min,
+            self.trajectory_impact_max,
+            self.trajectory_r0,
+            self.trajectory_angle_step_deg,
+            self.trajectory_angle_step_min_deg,
+            self.trajectory_angle_step_max_deg,
+            self.trajectory_b_bohr,
+            self.trajectory_Npts,
+            self.trajectory_orbital_l,
+            self.trajectory_magnetic_m,
+            self.trajectory_random_m,
+            self.trajectory_sweep_label,
+            self.trajectory_parallel_workers,
+        ):
+            variable.trace_add("write", lambda *_: self._on_trajectory_inputs_changed())
+
+        self.trajectory_auto.trace_add("write", lambda *_: self._on_trajectory_auto_toggle())
+
+    def _attach_tooltip(self, widget, text: str):
+        if text:
+            setattr(widget, "_tooltip_text", text)
+            setattr(widget, "_tooltip", Tooltip(widget, text))
+            self._tooltip_targets.append(widget)
+        return widget
+
     def _make_slider(self, parent, label, variable, min_value, max_value, row, description="", resolution=0.01):
         frame = ttk.Frame(parent)
         frame.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(2, 0))
@@ -586,18 +1032,24 @@ class App(tk.Tk):
 
         label_frame = ttk.Frame(frame)
         label_frame.grid(row=0, column=0, columnspan=2, sticky="ew")
-        ttk.Label(label_frame, text=label).grid(row=0, column=0, sticky="w")
+        label_widget = ttk.Label(label_frame, text=label)
+        label_widget.grid(row=0, column=0, sticky="w")
+        self._attach_tooltip(label_widget, description)
         if description:
-            ttk.Label(
+            hint_label = ttk.Label(
                 label_frame,
                 text=f"({description})",
                 foreground="#555",
+                font=("TkDefaultFont", 8),
                 wraplength=CONTROL_WRAP_LENGTH,
                 justify="left",
-            ).grid(row=1, column=0, sticky="w")
+            )
+            hint_label.grid(row=1, column=0, sticky="w")
+            self._attach_tooltip(hint_label, description)
 
         slider = ttk.Scale(frame, from_=min_value, to=max_value, orient="horizontal", variable=variable)
         slider.grid(row=1, column=0, sticky="ew", padx=(0, 8), pady=(2, 0))
+        self._attach_tooltip(slider, description)
 
         def format_value(value):
             try:
@@ -609,6 +1061,7 @@ class App(tk.Tk):
 
         value_label = ttk.Label(frame, text=format_value(variable.get()))
         value_label.grid(row=1, column=1, sticky="e", pady=(2, 0))
+        self._attach_tooltip(value_label, description)
         variable.trace_add("write", lambda *_: value_label.config(text=format_value(variable.get())))
 
     def _current_source_depth(self) -> int:
@@ -659,6 +1112,34 @@ class App(tk.Tk):
         if energy_value <= 0.0:
             raise ValueError("Выбранная энергия должна быть положительной.")
         return energy_value
+
+    def _trajectory_sweep_mode(self) -> str:
+        return TRAJECTORY_SWEEP_BY_LABEL[self.trajectory_sweep_label.get()]
+
+    def _current_trajectory_request(self) -> TrajectorySweepRequest:
+        return TrajectorySweepRequest(
+            sweep_mode=self._trajectory_sweep_mode(),
+            point_count=int(self.trajectory_Npts.get()),
+            atomic_number=float(self.trajectory_Z.get()),
+            mass_amu=float(self.trajectory_mass_amu.get()),
+            energy_eV=float(self.trajectory_energy.get()),
+            energy_min_eV=float(self.trajectory_Emin.get()),
+            energy_max_eV=float(self.trajectory_Emax.get()),
+            impact_parameter_ang=float(self.trajectory_impact.get()),
+            impact_min_ang=float(self.trajectory_impact_min.get()),
+            impact_max_ang=float(self.trajectory_impact_max.get()),
+            r0_ang=float(self.trajectory_r0.get()),
+            angle_step_deg=float(self.trajectory_angle_step_deg.get()),
+            angle_step_min_deg=float(self.trajectory_angle_step_min_deg.get()),
+            angle_step_max_deg=float(self.trajectory_angle_step_max_deg.get()),
+            b_bohr=float(self.trajectory_b_bohr.get()),
+            orbital_l=int(self.trajectory_orbital_l.get()),
+            magnetic_m=int(self.trajectory_magnetic_m.get()),
+            random_m=bool(self.trajectory_random_m.get()),
+            min_steps=30,
+            max_refinements=6,
+            parallel_workers=int(self.trajectory_parallel_workers.get()),
+        )
 
     def _current_search_region(self, geometry: GeometryContext) -> tuple[LatticeSearchRegion, str]:
         if self.auto_n.get():
@@ -784,6 +1265,17 @@ class App(tk.Tk):
                 self.after_cancel(self._scheduled_right_after)
                 self._scheduled_right_after = None
 
+    def _on_trajectory_inputs_changed(self) -> None:
+        if self.trajectory_auto.get():
+            self._schedule_trajectory_update(delay_ms=450)
+
+    def _on_trajectory_auto_toggle(self) -> None:
+        if self.trajectory_auto.get():
+            self._schedule_trajectory_update(delay_ms=150)
+        elif self._scheduled_trajectory_after is not None:
+            self.after_cancel(self._scheduled_trajectory_after)
+            self._scheduled_trajectory_after = None
+
     def _update_formula_hint(self) -> None:
         self.formula_hint_text.set(FORMULA_HINTS[self._selected_formula_variant()])
 
@@ -834,6 +1326,11 @@ class App(tk.Tk):
         if self._scheduled_right_after is not None:
             self.after_cancel(self._scheduled_right_after)
         self._scheduled_right_after = self.after(delay_ms, self._submit_right_update)
+
+    def _schedule_trajectory_update(self, delay_ms: int = 0) -> None:
+        if self._scheduled_trajectory_after is not None:
+            self.after_cancel(self._scheduled_trajectory_after)
+        self._scheduled_trajectory_after = self.after(delay_ms, self._submit_trajectory_update)
 
     def _submit_right_update(self) -> None:
         self._scheduled_right_after = None
@@ -989,6 +1486,25 @@ class App(tk.Tk):
                 self.boundary_output.insert(tk.END, f"\n[Boundary Scroll] Ошибка: {ex}\n")
                 self.boundary_output.see(tk.END)
 
+    def _on_trajectory_plot_scroll(self, event) -> None:
+        steps_axis = getattr(self.ax_trajectory_diagnostics, "_trajectory_steps_axis", None)
+        if event.inaxes not in (self.ax_trajectory_phase, self.ax_trajectory_angle, self.ax_trajectory_diagnostics, steps_axis):
+            return
+        factor = 0.85 if event.button == "up" else 1.18
+        try:
+            target_axis = self.ax_trajectory_diagnostics if event.inaxes is steps_axis else event.inaxes
+            if event.xdata is None or event.ydata is None:
+                zoom_axis(target_axis, factor)
+            else:
+                zoom_axis_around_point(target_axis, factor, event.xdata, event.ydata)
+            if self.trajectory_canvas is not None:
+                self.trajectory_canvas.draw_idle()
+        except Exception as ex:
+            logger.exception("TRAJECTORY_SCROLL | ошибка")
+            if self.trajectory_output is not None:
+                self.trajectory_output.insert(tk.END, f"\n[Trajectory Scroll] Ошибка: {ex}\n")
+                self.trajectory_output.see(tk.END)
+
     def _reset_zoom(self) -> None:
         if not self._default_view_limits:
             return
@@ -1011,6 +1527,19 @@ class App(tk.Tk):
             if self.boundary_output is not None:
                 self.boundary_output.insert(tk.END, f"\n[Reset Boundary Zoom] Ошибка: {ex}\n")
                 self.boundary_output.see(tk.END)
+
+    def _reset_trajectory_zoom(self) -> None:
+        if not self._trajectory_view_limits:
+            return
+        try:
+            restore_view_limits(self._trajectory_view_limits)
+            if self.trajectory_canvas is not None:
+                self.trajectory_canvas.draw_idle()
+        except Exception as ex:
+            logger.exception("RESET_TRAJECTORY_ZOOM | ошибка")
+            if self.trajectory_output is not None:
+                self.trajectory_output.insert(tk.END, f"\n[Reset Trajectory Zoom] Ошибка: {ex}\n")
+                self.trajectory_output.see(tk.END)
 
     def _set_text_output(self, target: tk.Text | None, text: str) -> None:
         if target is None:
@@ -1071,12 +1600,114 @@ class App(tk.Tk):
         summary = self._format_boundary_summary(curves, point_result)
         self._set_text_output(self.boundary_output, summary)
 
+    def _update_trajectory_utility(self) -> None:
+        self._submit_trajectory_update()
+
+    def _submit_trajectory_update(self) -> None:
+        if self._closing:
+            return
+        if (
+            self.trajectory_fig is None
+            or self.trajectory_canvas is None
+            or self.ax_trajectory_phase is None
+            or self.ax_trajectory_angle is None
+            or self.ax_trajectory_diagnostics is None
+        ):
+            return
+        try:
+            request = self._current_trajectory_request()
+        except Exception as ex:
+            self._display_trajectory_error(ex)
+            return
+
+        if self._running_trajectory_future is not None and not self._running_trajectory_future.done():
+            self._queued_trajectory_request = request
+            self.status_text.set("Траекторный расчёт уже идёт. Последнее изменение поставлено в очередь.")
+            return
+
+        self._start_trajectory_update(request)
+
+    def _start_trajectory_update(self, request: TrajectorySweepRequest) -> None:
+        self.status_text.set(
+            f"Траекторный расчёт: {TRAJECTORY_SWEEP_LABELS[request.sweep_mode]}, {request.point_count} точек..."
+        )
+        self._running_trajectory_future = self._trajectory_executor.submit(execute_trajectory_sweep, request)
+        self.after(50, self._poll_trajectory_update)
+
+    def _poll_trajectory_update(self) -> None:
+        if self._closing:
+            return
+        future = self._running_trajectory_future
+        if future is None:
+            return
+        if future.done():
+            self._finish_trajectory_update(future)
+            return
+        self.after(50, self._poll_trajectory_update)
+
+    def _finish_trajectory_update(self, future: Future) -> None:
+        if not self.winfo_exists():
+            return
+        if future is not self._running_trajectory_future:
+            return
+
+        self._running_trajectory_future = None
+        next_request = self._queued_trajectory_request
+        self._queued_trajectory_request = None
+
+        try:
+            result = future.result()
+        except Exception as ex:
+            logger.exception("TRAJECTORY | ошибка расчёта")
+            self._display_trajectory_error(ex)
+        else:
+            self._apply_trajectory_result(result)
+
+        if next_request is not None:
+            self._start_trajectory_update(next_request)
+
+    def _apply_trajectory_result(self, result: TrajectorySweepResult) -> None:
+        self._latest_trajectory_payload = result
+        x_label = TRAJECTORY_AXIS_LABELS[result.request.sweep_mode]
+        draw_trajectory_sweep_plots(
+            self.ax_trajectory_phase,
+            self.ax_trajectory_angle,
+            self.ax_trajectory_diagnostics,
+            result.frame,
+            "sweep_value",
+            x_label,
+        )
+        self.trajectory_fig.tight_layout()
+        self._trajectory_view_limits = capture_view_limits(
+            self.ax_trajectory_phase,
+            self.ax_trajectory_angle,
+            self.ax_trajectory_diagnostics,
+        )
+        self.trajectory_canvas.draw_idle()
+        self._set_text_output(self.trajectory_output, self._format_trajectory_summary(result))
+        self.status_text.set(
+            f"Траекторный расчёт готов: {len(result.frame)} точек, {result.elapsed_ms:.0f} мс."
+        )
+
+    def _display_trajectory_error(self, error: Exception) -> None:
+        self._latest_trajectory_payload = None
+        for axis in (self.ax_trajectory_phase, self.ax_trajectory_angle, self.ax_trajectory_diagnostics):
+            axis.clear()
+            axis.text(0.05, 0.95, f"Ошибка: {error}", transform=axis.transAxes, va="top", ha="left")
+            axis.grid(True, which="both")
+        steps_axis = getattr(self.ax_trajectory_diagnostics, "_trajectory_steps_axis", None)
+        if steps_axis is not None:
+            steps_axis.clear()
+        if self.trajectory_canvas is not None:
+            self.trajectory_canvas.draw_idle()
+        self._set_text_output(self.trajectory_output, f"[Ошибка траекторного расчёта]\n{error}\n")
+        self.status_text.set(f"Ошибка траекторного расчёта: {error}")
+
     def _format_boundary_summary(self, curves, point_result) -> str:
         beta_text = "не реализуется" if point_result.transmission_angle_deg is None else f"{point_result.transmission_angle_deg:.4g}°"
         k_ratio_text = "не определён" if point_result.wavevector_ratio is None else f"{point_result.wavevector_ratio:.6g}"
         min_reflection = float(np.nanmin(curves.reflection_coefficient))
         max_reflection = float(np.nanmax(curves.reflection_coefficient))
-        max_probability = float(np.nanmax(curves.reflection_probability_estimate))
         finite_beta_mask = np.isfinite(curves.transmission_angle_deg)
         if np.any(finite_beta_mask):
             beta_range = (
@@ -1096,12 +1727,48 @@ class App(tk.Tk):
             f"β после прохождения = {beta_text}\n"
             f"k'/k = {k_ratio_text}\n"
             f"R = {point_result.reflection_coefficient:.6g}\n"
-            f"R² ~ {point_result.reflection_probability_estimate:.6g}\n"
             f"Режим: {point_result.regime}\n"
             "\n"
-            f"По диапазону: R в пределах {min_reflection:.6g} .. {max_reflection:.6g}, "
-            f"R² до {max_probability:.6g}\n"
+            f"По диапазону: R в пределах {min_reflection:.6g} .. {max_reflection:.6g}\n"
             f"Диапазон реализуемых β: {beta_range}\n"
+        )
+
+    def _format_trajectory_summary(self, result: TrajectorySweepResult) -> str:
+        frame = result.frame
+        request = result.request
+        phase_values = frame["phase_rad"].to_numpy(dtype=float)
+        theta_values = frame["theta_deg"].to_numpy(dtype=float)
+        phi_values = frame["trajectory_phi_deg"].to_numpy(dtype=float)
+        steps_values = frame["steps"].to_numpy(dtype=float)
+        r_min_values = frame["r_min_ang"].to_numpy(dtype=float)
+        refinements_max = int(frame["refinements"].max())
+        converged_count = int(frame["converged"].sum())
+        last = frame.iloc[-1]
+
+        return (
+            "[Траекторный расчёт]\n"
+            f"Режим: {TRAJECTORY_SWEEP_LABELS[request.sweep_mode]}, точек: {len(frame)}\n"
+            f"Z={request.atomic_number:.6g}, масса={request.mass_amu:.8g} а.е.м, b={request.b_bohr:.6g} a0\n"
+            f"r0={request.r0_ang:.6g} Å, min steps={request.min_steps}, max refinements={request.max_refinements}\n"
+            f"L={request.orbital_l}, M={'random' if request.random_m else request.magnetic_m}\n"
+            "\n"
+            f"ϕ: {float(np.nanmin(phase_values)):.6g} .. {float(np.nanmax(phase_values)):.6g} рад\n"
+            f"θ: {float(np.nanmin(theta_values)):.6g}° .. {float(np.nanmax(theta_values)):.6g}°\n"
+            f"φ: {float(np.nanmin(phi_values)):.6g}° .. {float(np.nanmax(phi_values)):.6g}°\n"
+            f"r_min: {float(np.nanmin(r_min_values)):.6g} .. {float(np.nanmax(r_min_values)):.6g} Å\n"
+            f"steps: {int(np.nanmin(steps_values))} .. {int(np.nanmax(steps_values))}, "
+            f"max уточнений dt: {refinements_max}\n"
+            f"Сошлось по правилу steps >= {request.min_steps}: {converged_count}/{len(frame)}\n"
+            f"Время расчёта: {result.elapsed_ms:.3g} мс\n"
+            "\n"
+            "Последняя точка:\n"
+            f"E={float(last['energy_eV']):.6g} эВ, r_п={float(last['impact_parameter_ang']):.6g} Å, "
+            f"dθ={float(last['angle_step_deg']):.6g}°\n"
+            f"ϕ={float(last['phase_rad']):.6g} рад, θ={float(last['theta_deg']):.6g}°, "
+            f"φ={float(last['trajectory_phi_deg']):.6g}°\n"
+            f"P(no flip | ↑)={float(last['p_no_flip_initial_up']):.6g}, "
+            f"P(no flip | ↓)={float(last['p_no_flip_initial_down']):.6g}\n"
+            f"status={last['status']}\n"
         )
 
     def _append_output(self, text: str) -> None:
@@ -1189,6 +1856,54 @@ class App(tk.Tk):
             metadata["lz_chain"] = list(result.lz_chain)
         return metadata
 
+    def _export_trajectory_data(self) -> None:
+        payload = self._latest_trajectory_payload
+        if payload is None:
+            self.status_text.set("Нет траекторного расчёта для экспорта. Сначала нажмите Рассчитать.")
+            self._set_text_output(self.trajectory_output, "[Экспорт]\nНет траекторного расчёта для экспорта.\n")
+            return
+
+        selected_path = filedialog.asksaveasfilename(
+            parent=self,
+            title="Экспорт траекторного расчёта",
+            initialfile=self._default_trajectory_export_name(payload),
+            defaultextension=".json",
+            filetypes=[
+                ("JSON", "*.json"),
+                ("Excel", "*.xlsx"),
+                ("XML", "*.xml"),
+                ("Все файлы", "*.*"),
+            ],
+        )
+        if not selected_path:
+            return
+
+        selected = Path(selected_path)
+        base_path = selected.parent / selected.stem if selected.suffix else selected
+        try:
+            exported = export_trajectory_bundle(
+                base_path=base_path,
+                frame=payload.frame,
+                metadata=trajectory_export_metadata(payload),
+            )
+        except Exception as ex:
+            logger.exception("EXPORT | ошибка экспорта траекторного расчёта")
+            self.status_text.set(f"Ошибка экспорта траекторного расчёта: {ex}")
+            if self.trajectory_output is not None:
+                self.trajectory_output.insert(tk.END, f"\n[Экспорт] Ошибка: {ex}\n")
+                self.trajectory_output.see(tk.END)
+            return
+
+        exported_summary = ", ".join(f"{kind.upper()}={path.name}" for kind, path in exported.items())
+        self.status_text.set(f"Экспорт траекторного расчёта выполнен: {base_path.stem}")
+        if self.trajectory_output is not None:
+            self.trajectory_output.insert(tk.END, f"\n[Экспорт] {exported_summary}\n")
+            self.trajectory_output.see(tk.END)
+
+    def _default_trajectory_export_name(self, payload: TrajectorySweepResult) -> str:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        return f"trajectory-{payload.request.sweep_mode}-{timestamp}"
+
     def _refresh_geometry_preview(self, geometry: GeometryContext, atom_selection, search_region: LatticeSearchRegion) -> None:
         if (
             self.geometry_fig is None
@@ -1207,25 +1922,20 @@ class App(tk.Tk):
         except Exception:
             logger.exception("GEOMETRY_PREVIEW | ошибка обновления схемы")
 
-    def _on_controls_frame_configure(self, _event) -> None:
-        if self._controls_canvas is not None:
-            self._controls_canvas.configure(scrollregion=self._controls_canvas.bbox("all"))
-
-    def _on_controls_canvas_configure(self, event) -> None:
-        if self._controls_canvas is not None and self._controls_window_id is not None:
-            self._controls_canvas.itemconfigure(self._controls_window_id, width=event.width)
-
-    def _bind_controls_mousewheel(self, _event) -> None:
-        self.bind_all("<MouseWheel>", self._on_controls_mousewheel)
-
-    def _unbind_controls_mousewheel(self, _event) -> None:
-        self.unbind_all("<MouseWheel>")
+    def _active_scroll_canvas_set(self, canvas: tk.Canvas | None) -> None:
+        self._active_scroll_canvas = canvas
 
     def _on_controls_mousewheel(self, event) -> None:
-        if self._controls_canvas is None:
+        if self._active_scroll_canvas is None:
             return
-        scroll_units = -1 if event.delta > 0 else 1
-        self._controls_canvas.yview_scroll(scroll_units, "units")
+        if getattr(event, "num", None) == 4:
+            scroll_units = -3
+        elif getattr(event, "num", None) == 5:
+            scroll_units = 3
+        else:
+            scroll_units = -1 * int(event.delta / 120) if event.delta else 0
+        if scroll_units:
+            self._active_scroll_canvas.yview_scroll(scroll_units, "units")
 
     def update_output_left(self) -> None:
         geometry = self._current_geometry()
@@ -1313,7 +2023,11 @@ class App(tk.Tk):
         if self._scheduled_right_after is not None:
             self.after_cancel(self._scheduled_right_after)
             self._scheduled_right_after = None
+        if self._scheduled_trajectory_after is not None:
+            self.after_cancel(self._scheduled_trajectory_after)
+            self._scheduled_trajectory_after = None
         self._executor.shutdown(wait=False, cancel_futures=True)
+        self._trajectory_executor.shutdown(wait=False, cancel_futures=True)
         self.destroy()
 
 
