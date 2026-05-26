@@ -27,7 +27,9 @@ from polarization_app.application.spectrum_export import export_spectrum_bundle
 from polarization_app.application.trajectory import (
     TRAJECTORY_AXIS_LABELS,
     TRAJECTORY_SWEEP_BY_LABEL,
+    TRAJECTORY_SWEEP_ANGLE_STEP,
     TRAJECTORY_SWEEP_ENERGY,
+    TRAJECTORY_SWEEP_IMPACT,
     TRAJECTORY_SWEEP_LABELS,
     TrajectorySweepRequest,
     TrajectorySweepResult,
@@ -57,6 +59,7 @@ from polarization_app.physics.trajectory_phase import DEFAULT_THOMAS_FERMI_B_BOH
 logger = logging.getLogger(__name__)
 CONTROL_PANEL_WIDTH = 360
 CONTROL_WRAP_LENGTH = 300
+VALIDATION_ERROR_COLOR = "#b00020"
 
 
 def configure_logging() -> None:
@@ -171,6 +174,7 @@ class App(tk.Tk):
             "[Траекторный расчёт]\nНастройте параметры и нажмите «Рассчитать». "
             "Если нужен пересчёт при движении ползунков, включите автопересчёт слева.\n",
         )
+        self._update_trajectory_validation_hints()
 
     def _create_variables(self) -> None:
         self.a = tk.DoubleVar(value=4.75)
@@ -265,6 +269,7 @@ class App(tk.Tk):
         self._scrollable_control_canvases: list[tk.Canvas] = []
         self._active_scroll_canvas: tk.Canvas | None = None
         self._tooltip_targets: list[tk.Widget] = []
+        self._trajectory_error_labels: dict[str, ttk.Label] = {}
         self._closing = False
         self._geometry_change_in_progress = False
 
@@ -635,6 +640,7 @@ class App(tk.Tk):
             current_row,
             description="Сколько потоков использовать для параллельного расчёта точек диапазона",
             resolution=1,
+            validation_key="parallel_workers",
         ); current_row += 1
 
         ttk.Separator(section, orient="horizontal").grid(row=current_row, column=0, columnspan=2, sticky="ew", pady=(0, 6))
@@ -648,6 +654,7 @@ class App(tk.Tk):
             92,
             current_row,
             description="Заряд ядра атома в потенциале Томаса-Ферми",
+            validation_key="atomic_number",
         ); current_row += 1
         self._make_slider(
             section,
@@ -658,6 +665,7 @@ class App(tk.Tk):
             current_row,
             description="Масса частицы в атомных единицах массы; электрон по умолчанию 0.000549 а.е.м",
             resolution=0.0001,
+            validation_key="mass_amu",
         ); current_row += 1
         self._make_slider(
             section,
@@ -667,6 +675,7 @@ class App(tk.Tk):
             5000.0,
             current_row,
             description="Энергия одной расчётной точки; используется, когда ось X не энергия",
+            validation_key="energy",
         ); current_row += 1
         self._make_slider(
             section,
@@ -676,6 +685,7 @@ class App(tk.Tk):
             5000.0,
             current_row,
             description="Нижняя граница диапазона энергии при sweep по E",
+            validation_key="energy_min",
         ); current_row += 1
         self._make_slider(
             section,
@@ -685,6 +695,7 @@ class App(tk.Tk):
             10000.0,
             current_row,
             description="Верхняя граница диапазона энергии при sweep по E",
+            validation_key="energy_max",
         ); current_row += 1
         self._make_slider(
             section,
@@ -694,6 +705,7 @@ class App(tk.Tk):
             5.0,
             current_row,
             description="Параметр удара r_п; используется, когда ось X не r_п",
+            validation_key="impact_fixed",
         ); current_row += 1
         self._make_slider(
             section,
@@ -703,6 +715,7 @@ class App(tk.Tk):
             5.0,
             current_row,
             description="Нижняя граница параметра удара для sweep по r_п; при max_steps поднимите до 0.25-0.3 Å",
+            validation_key="impact_min",
         ); current_row += 1
         self._make_slider(
             section,
@@ -712,6 +725,7 @@ class App(tk.Tk):
             8.0,
             current_row,
             description="Верхняя граница параметра удара для sweep по r_п",
+            validation_key="impact_max",
         ); current_row += 1
         self._make_slider(
             section,
@@ -721,6 +735,7 @@ class App(tk.Tk):
             40.0,
             current_row,
             description="Начальное расстояние интегрирования; должно быть больше r_п и r_min",
+            validation_key="r0",
         ); current_row += 1
         self._make_slider(
             section,
@@ -730,6 +745,7 @@ class App(tk.Tk):
             5.0,
             current_row,
             description="Угловой шаг интегрирования; если видите max_steps, увеличьте этот ползунок до 2-5°",
+            validation_key="angle_step",
         ); current_row += 1
         self._make_slider(
             section,
@@ -739,6 +755,7 @@ class App(tk.Tk):
             5.0,
             current_row,
             description="Нижняя граница шага dθ для sweep по точности интегрирования",
+            validation_key="angle_step_min",
         ); current_row += 1
         self._make_slider(
             section,
@@ -748,6 +765,7 @@ class App(tk.Tk):
             5.0,
             current_row,
             description="Верхняя граница шага dθ для sweep по точности интегрирования",
+            validation_key="angle_step_max",
         ); current_row += 1
         self._make_slider(
             section,
@@ -757,6 +775,7 @@ class App(tk.Tk):
             2.0,
             current_row,
             description="Масштаб экранирования b в потенциале U(r), в атомных радиусах a0",
+            validation_key="b_bohr",
         ); current_row += 1
         self._make_slider(
             section,
@@ -767,6 +786,7 @@ class App(tk.Tk):
             current_row,
             description="Количество расчётных точек на выбранной оси X",
             resolution=1,
+            validation_key="point_count",
         ); current_row += 1
         self._make_slider(
             section,
@@ -777,6 +797,7 @@ class App(tk.Tk):
             current_row,
             description="Орбитальное квантовое число для матрицы переходов",
             resolution=1,
+            validation_key="orbital_l",
         ); current_row += 1
         self._make_slider(
             section,
@@ -787,6 +808,7 @@ class App(tk.Tk):
             current_row,
             description="Магнитное квантовое число; физически должно лежать в пределах -L..L",
             resolution=1,
+            validation_key="magnetic_m",
         ); current_row += 1
 
         random_m_check = ttk.Checkbutton(
@@ -1025,7 +1047,18 @@ class App(tk.Tk):
             self._tooltip_targets.append(widget)
         return widget
 
-    def _make_slider(self, parent, label, variable, min_value, max_value, row, description="", resolution=0.01):
+    def _make_slider(
+        self,
+        parent,
+        label,
+        variable,
+        min_value,
+        max_value,
+        row,
+        description="",
+        resolution=0.01,
+        validation_key: str | None = None,
+    ):
         frame = ttk.Frame(parent)
         frame.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(2, 0))
         frame.columnconfigure(0, weight=1)
@@ -1063,6 +1096,18 @@ class App(tk.Tk):
         value_label.grid(row=1, column=1, sticky="e", pady=(2, 0))
         self._attach_tooltip(value_label, description)
         variable.trace_add("write", lambda *_: value_label.config(text=format_value(variable.get())))
+        if validation_key is not None:
+            error_label = ttk.Label(
+                frame,
+                text="",
+                foreground=VALIDATION_ERROR_COLOR,
+                font=("TkDefaultFont", 8),
+                wraplength=CONTROL_WRAP_LENGTH,
+                justify="left",
+            )
+            error_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=(1, 0))
+            error_label.grid_remove()
+            self._trajectory_error_labels[validation_key] = error_label
 
     def _current_source_depth(self) -> int:
         return max(1, int(self.d_layer.get()))
@@ -1140,6 +1185,130 @@ class App(tk.Tk):
             max_refinements=6,
             parallel_workers=int(self.trajectory_parallel_workers.get()),
         )
+
+    def _trajectory_validation_errors(self) -> dict[str, list[str]]:
+        errors: dict[str, list[str]] = {}
+
+        def add(key: str, message: str) -> None:
+            errors.setdefault(key, []).append(message)
+
+        sweep_mode = self._trajectory_sweep_mode()
+        z = float(self.trajectory_Z.get())
+        mass = float(self.trajectory_mass_amu.get())
+        energy = float(self.trajectory_energy.get())
+        emin = float(self.trajectory_Emin.get())
+        emax = float(self.trajectory_Emax.get())
+        impact = float(self.trajectory_impact.get())
+        impact_min = float(self.trajectory_impact_min.get())
+        impact_max = float(self.trajectory_impact_max.get())
+        r0 = float(self.trajectory_r0.get())
+        angle_step = float(self.trajectory_angle_step_deg.get())
+        angle_step_min = float(self.trajectory_angle_step_min_deg.get())
+        angle_step_max = float(self.trajectory_angle_step_max_deg.get())
+        b_bohr = float(self.trajectory_b_bohr.get())
+        point_count = int(self.trajectory_Npts.get())
+        orbital_l = int(self.trajectory_orbital_l.get())
+        magnetic_m = int(self.trajectory_magnetic_m.get())
+        parallel_workers = int(self.trajectory_parallel_workers.get())
+
+        if z <= 0.0:
+            add("atomic_number", "Z должен быть положительным.")
+        if mass <= 0.0:
+            add("mass_amu", "Масса должна быть положительной.")
+        if energy <= 0.0:
+            add("energy", "Энергия должна быть положительной.")
+        if emin <= 0.0:
+            add("energy_min", "Emin должен быть положительным.")
+        if emax <= 0.0:
+            add("energy_max", "Emax должен быть положительным.")
+        if emax <= emin:
+            add("energy_min", "Emin должен быть меньше Emax.")
+            add("energy_max", "Emax должен быть больше Emin.")
+
+        if impact <= 0.0:
+            add("impact_fixed", "r_п должен быть положительным.")
+        if impact_min <= 0.0:
+            add("impact_min", "r_п min должен быть положительным.")
+        if impact_max <= 0.0:
+            add("impact_max", "r_п max должен быть положительным.")
+        if impact_max <= impact_min:
+            add("impact_min", "r_п min должен быть меньше r_п max.")
+            add("impact_max", "r_п max должен быть больше r_п min.")
+
+        largest_used_impact = impact_max if sweep_mode == TRAJECTORY_SWEEP_IMPACT else impact
+        if r0 <= 0.0:
+            add("r0", "r0 должен быть положительным.")
+        elif r0 <= largest_used_impact:
+            add("r0", f"r0 должен быть больше используемого r_п ({largest_used_impact:.4g} Å).")
+            if sweep_mode == TRAJECTORY_SWEEP_IMPACT:
+                add("impact_max", "r_п max должен быть меньше r0.")
+            else:
+                add("impact_fixed", "r_п фикс. должен быть меньше r0.")
+
+        if angle_step <= 0.0:
+            add("angle_step", "dθ фикс. должен быть положительным.")
+        if angle_step_min <= 0.0:
+            add("angle_step_min", "dθ min должен быть положительным.")
+        if angle_step_max <= 0.0:
+            add("angle_step_max", "dθ max должен быть положительным.")
+        if angle_step_max <= angle_step_min:
+            add("angle_step_min", "dθ min должен быть меньше dθ max.")
+            add("angle_step_max", "dθ max должен быть больше dθ min.")
+
+        if b_bohr <= 0.0:
+            add("b_bohr", "b Thomas-Fermi должен быть положительным.")
+        if point_count < 1:
+            add("point_count", "Нужна хотя бы одна точка.")
+        if orbital_l < 0:
+            add("orbital_l", "L должен быть неотрицательным.")
+        if not self.trajectory_random_m.get() and abs(magnetic_m) > orbital_l:
+            add("magnetic_m", f"Для ручного M требуется -L <= M <= L; сейчас L={orbital_l}, M={magnetic_m}.")
+        if parallel_workers < 1:
+            add("parallel_workers", "Потоков должно быть минимум 1.")
+
+        return errors
+
+    def _apply_trajectory_validation_errors(self, errors: dict[str, list[str]]) -> None:
+        for key, label in self._trajectory_error_labels.items():
+            messages = errors.get(key, [])
+            if messages:
+                label.config(text=" ".join(messages))
+                label.grid()
+            else:
+                label.config(text="")
+                label.grid_remove()
+
+    def _update_trajectory_validation_hints(self) -> dict[str, list[str]]:
+        errors = self._trajectory_validation_errors()
+        self._apply_trajectory_validation_errors(errors)
+        return errors
+
+    def _add_trajectory_runtime_hints(self, result: TrajectorySweepResult) -> None:
+        errors = self._trajectory_validation_errors()
+        failed_frame = result.frame[~result.frame["converged"].astype(bool)]
+        if failed_frame.empty:
+            self._apply_trajectory_validation_errors(errors)
+            return
+
+        status_text = " ".join(str(value) for value in failed_frame["status"].to_list())
+
+        def add(key: str, message: str) -> None:
+            errors.setdefault(key, [])
+            if message not in errors[key]:
+                errors[key].append(message)
+
+        if "max_steps" in status_text:
+            if result.request.sweep_mode == TRAJECTORY_SWEEP_IMPACT:
+                add("impact_min", "Часть точек не сошлась: увеличьте r_п min, например до 0.3 Å.")
+                add("angle_step", "Можно также увеличить dθ фикс. до 2-5°.")
+            elif result.request.sweep_mode == TRAJECTORY_SWEEP_ANGLE_STEP:
+                add("angle_step_min", "Часть точек не сошлась: увеличьте dθ min.")
+            else:
+                add("angle_step", "Часть точек не сошлась: увеличьте dθ фикс. до 2-5°.")
+        if "r0" in status_text or "r_п" in status_text:
+            add("r0", "Проверьте, что r0 больше всех используемых r_п.")
+
+        self._apply_trajectory_validation_errors(errors)
 
     def _current_search_region(self, geometry: GeometryContext) -> tuple[LatticeSearchRegion, str]:
         if self.auto_n.get():
@@ -1266,11 +1435,23 @@ class App(tk.Tk):
                 self._scheduled_right_after = None
 
     def _on_trajectory_inputs_changed(self) -> None:
+        errors = self._update_trajectory_validation_hints()
+        if errors:
+            if self._scheduled_trajectory_after is not None:
+                self.after_cancel(self._scheduled_trajectory_after)
+                self._scheduled_trajectory_after = None
+            return
         if self.trajectory_auto.get():
             self._schedule_trajectory_update(delay_ms=450)
 
     def _on_trajectory_auto_toggle(self) -> None:
+        errors = self._update_trajectory_validation_hints()
         if self.trajectory_auto.get():
+            if errors:
+                if self._scheduled_trajectory_after is not None:
+                    self.after_cancel(self._scheduled_trajectory_after)
+                    self._scheduled_trajectory_after = None
+                return
             self._schedule_trajectory_update(delay_ms=150)
         elif self._scheduled_trajectory_after is not None:
             self.after_cancel(self._scheduled_trajectory_after)
@@ -1614,6 +1795,14 @@ class App(tk.Tk):
             or self.ax_trajectory_diagnostics is None
         ):
             return
+        errors = self._update_trajectory_validation_hints()
+        if errors:
+            self._set_text_output(
+                self.trajectory_output,
+                "[Траекторный расчёт]\nИсправьте параметры, отмеченные красным в левой панели.\n",
+            )
+            self.status_text.set("Траекторный расчёт не запущен: есть ошибки в параметрах.")
+            return
         try:
             request = self._current_trajectory_request()
         except Exception as ex:
@@ -1685,6 +1874,7 @@ class App(tk.Tk):
         )
         self.trajectory_canvas.draw_idle()
         self._set_text_output(self.trajectory_output, self._format_trajectory_summary(result))
+        self._add_trajectory_runtime_hints(result)
         converged_count = int(result.frame["converged"].sum())
         if converged_count == len(result.frame):
             self.status_text.set(

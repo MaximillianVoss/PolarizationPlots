@@ -10,12 +10,14 @@ class AppBindingProbe(App):
         self.left_scheduled_calls: list[int] = []
         self.right_scheduled_calls: list[int] = []
         self.trajectory_scheduled_calls: list[int] = []
+        self.trajectory_start_calls = 0
         super().__init__()
         self.withdraw()
         self.left_direct_calls = 0
         self.left_scheduled_calls.clear()
         self.right_scheduled_calls.clear()
         self.trajectory_scheduled_calls.clear()
+        self.trajectory_start_calls = 0
 
     def update_output_left(self) -> None:
         self.left_direct_calls += 1
@@ -28,6 +30,9 @@ class AppBindingProbe(App):
 
     def _schedule_trajectory_update(self, delay_ms: int = 0) -> None:
         self.trajectory_scheduled_calls.append(delay_ms)
+
+    def _start_trajectory_update(self, request) -> None:
+        self.trajectory_start_calls += 1
 
 
 class AppBindingsTestCase(unittest.TestCase):
@@ -144,6 +149,23 @@ class AppBindingsTestCase(unittest.TestCase):
         self.assertTrue(any("Заряд ядра атома" in text for text in tooltip_texts))
         self.assertTrue(any("Масса частицы" in text for text in tooltip_texts))
         self.assertTrue(any("Угловой шаг интегрирования" in text for text in tooltip_texts))
+
+    def test_trajectory_invalid_parameter_is_shown_near_control(self):
+        self.app.trajectory_orbital_l.set(1)
+        self.app.trajectory_magnetic_m.set(3)
+
+        error_text = self.app._trajectory_error_labels["magnetic_m"].cget("text")
+
+        self.assertIn("-L <= M <= L", error_text)
+
+    def test_trajectory_invalid_parameters_block_calculation_start(self):
+        self.app.trajectory_Emax.set(50.0)
+        self.app._update_trajectory_utility()
+
+        error_text = self.app._trajectory_error_labels["energy_max"].cget("text")
+
+        self.assertIn("Emax должен быть больше Emin", error_text)
+        self.assertEqual(self.app.trajectory_start_calls, 0)
 
     def test_auto_disabled_blocks_auto_recalc_for_non_orbital_controls(self):
         self.app.auto.set(False)
