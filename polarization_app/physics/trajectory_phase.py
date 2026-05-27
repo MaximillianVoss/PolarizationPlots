@@ -36,6 +36,7 @@ DEFAULT_SPIN_ORBIT_C1 = 1.0 / (4.0 * INVERSE_FINE_STRUCTURE * INVERSE_FINE_STRUC
 class AtomTrajectoryResult:
     energy_eV: float
     mass_amu: float
+    orbital_l: int
     atomic_number: float
     impact_parameter_ang: float
     r0_ang: float
@@ -110,6 +111,7 @@ def compute_atom_trajectory_phase(
     impact_parameter_ang: float,
     r0_ang: float,
     angle_step_rad: float,
+    orbital_l: int = 0,
     b_bohr: float = DEFAULT_THOMAS_FERMI_B_BOHR,
     min_steps: int = 30,
     max_refinements: int = 6,
@@ -127,6 +129,7 @@ def compute_atom_trajectory_phase(
         min_steps=min_steps,
         max_refinements=max_refinements,
         max_steps=max_steps,
+        orbital_l=orbital_l,
     )
 
     speed_mps = float(energy_eV_to_speed_mps_for_mass(float(energy_eV), mass_amu))
@@ -166,6 +169,7 @@ def compute_atom_trajectory_phase(
             refinements=refinements,
             min_steps=int(min_steps),
             max_steps=int(max_steps),
+            orbital_l=int(orbital_l),
             atomic_number_for_potential=float(atomic_number),
             chi=chi,
             chi_derivative=chi_derivative,
@@ -283,6 +287,7 @@ def _integrate_half_trajectory(
     refinements: int,
     min_steps: int,
     max_steps: int,
+    orbital_l: int,
     atomic_number_for_potential: float,
     chi: ChiFunction,
     chi_derivative: ChiFunction,
@@ -306,14 +311,14 @@ def _integrate_half_trajectory(
             chi=chi,
         )
         angular_rate = impact_bohr * speed_au / (r_bohr * r_bohr)
-        phase_rate = 0.5 * spin_orbit_c1 * float(
-            _potential_derivative_scalar(
-                r_bohr,
-                atomic_number_for_potential,
-                b_bohr=b_bohr,
-                chi=chi,
-                chi_derivative=chi_derivative,
-            )
+        phase_rate = _trajectory_phase_rate_scalar(
+            r_bohr,
+            atomic_number_for_potential,
+            b_bohr=b_bohr,
+            chi=chi,
+            chi_derivative=chi_derivative,
+            spin_orbit_c1=spin_orbit_c1,
+            orbital_l=orbital_l,
         )
         dr_bohr = radial_speed * dt_used_au
         if r_bohr - dr_bohr <= r_min_bohr:
@@ -341,6 +346,7 @@ def _integrate_half_trajectory(
     return AtomTrajectoryResult(
         energy_eV=energy_eV,
         mass_amu=mass_amu,
+        orbital_l=orbital_l,
         atomic_number=atomic_number,
         impact_parameter_ang=impact_parameter_ang,
         r0_ang=r0_ang,
@@ -436,6 +442,29 @@ def _potential_derivative_scalar(
     return z * _chi_scalar(chi, x) / (r * r) - (z ** (4.0 / 3.0)) * _chi_scalar(chi_derivative, x) / (r * b)
 
 
+def _trajectory_phase_rate_scalar(
+    r_bohr: float,
+    atomic_number: float,
+    *,
+    b_bohr: float,
+    chi: ChiFunction,
+    chi_derivative: ChiFunction,
+    spin_orbit_c1: float,
+    orbital_l: int,
+) -> float:
+    if r_bohr <= 0.0:
+        raise ValueError("Расстояние r должно быть положительным.")
+    z = float(atomic_number)
+    b = float(b_bohr)
+    r = float(r_bohr)
+    x = (z ** (1.0 / 3.0)) * r / b
+    orbital_factor = 2 * int(orbital_l) + 1
+    return 0.5 * float(spin_orbit_c1) * orbital_factor * (
+        z * _chi_scalar(chi, x) / (r * r * r)
+        - (z ** (4.0 / 3.0)) * _chi_scalar(chi_derivative, x) / (r * r * b)
+    )
+
+
 def _chi_scalar(chi: ChiFunction, x: float) -> float:
     if chi is spline_thomas_fermi_chi:
         return scalar_spline_thomas_fermi_chi(x)
@@ -455,6 +484,7 @@ def _validate_inputs(
     min_steps: int,
     max_refinements: int,
     max_steps: int,
+    orbital_l: int,
 ) -> None:
     if not np.isfinite(atomic_number) or atomic_number <= 0.0:
         raise ValueError("Z должен быть положительным.")
@@ -472,6 +502,8 @@ def _validate_inputs(
         raise ValueError("max_refinements не может быть отрицательным.")
     if max_steps <= 0:
         raise ValueError("max_steps должен быть положительным.")
+    if int(orbital_l) < 0:
+        raise ValueError("L должен быть неотрицательным.")
 
 
 __all__ = [

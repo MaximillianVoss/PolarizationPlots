@@ -140,6 +140,7 @@ def _compute_sweep_row(
             impact_parameter_ang=impact_parameter_ang,
             r0_ang=request.r0_ang,
             angle_step_rad=float(np.deg2rad(angle_step_deg)),
+            orbital_l=request.orbital_l,
             b_bohr=request.b_bohr,
             min_steps=request.min_steps,
             max_refinements=request.max_refinements,

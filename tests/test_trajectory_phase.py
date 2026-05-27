@@ -14,6 +14,7 @@ from polarization_app.physics.phase_integrals import (
 )
 from polarization_app.physics.trajectory_phase import (
     ELECTRON_MASS_AMU,
+    _trajectory_phase_rate_scalar,
     compute_atom_trajectory_phase,
     energy_eV_to_speed_mps_for_mass,
 )
@@ -44,6 +45,7 @@ class TrajectoryPhaseTestCase(unittest.TestCase):
             impact_parameter_ang=0.8,
             r0_ang=10.0,
             angle_step_rad=np.deg2rad(3.0),
+            orbital_l=1,
             min_steps=30,
         )
 
@@ -62,6 +64,7 @@ class TrajectoryPhaseTestCase(unittest.TestCase):
             impact_parameter_ang=0.8,
             r0_ang=10.0,
             angle_step_rad=np.deg2rad(3.0),
+            orbital_l=1,
             min_steps=1000,
             max_refinements=2,
         )
@@ -69,6 +72,22 @@ class TrajectoryPhaseTestCase(unittest.TestCase):
         self.assertGreaterEqual(result.steps, 1000)
         self.assertGreaterEqual(result.refinements, 1)
         self.assertTrue(result.converged)
+
+    def test_corrected_phase_rate_uses_orbital_factor_and_r_cubed(self):
+        one = lambda x: np.ones_like(x, dtype=float)
+        zero = lambda x: np.zeros_like(x, dtype=float)
+
+        rate = _trajectory_phase_rate_scalar(
+            2.0,
+            3.0,
+            b_bohr=0.885,
+            chi=one,
+            chi_derivative=zero,
+            spin_orbit_c1=0.25,
+            orbital_l=2,
+        )
+
+        self.assertAlmostEqual(rate, 0.5 * 0.25 * (2 * 2 + 1) * 3.0 / (2.0 ** 3))
 
 
 class TrajectorySweepTestCase(unittest.TestCase):
