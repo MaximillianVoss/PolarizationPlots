@@ -12,6 +12,8 @@ class TrajectoryPlottingTestCase(unittest.TestCase):
             {
                 "energy_eV": [100.0, 200.0],
                 "phase_rad": [0.1, 0.2],
+                "p_flip_initial_up": [0.12, 0.18],
+                "p_flip_initial_down": [0.08, 0.14],
                 "theta_deg": [10.0, 12.0],
                 "trajectory_phi_deg": [1.0, 1.5],
                 "r_min_ang": [0.3, 0.4],
@@ -32,10 +34,12 @@ class TrajectoryPlottingTestCase(unittest.TestCase):
             x_label="Энергия, эВ",
         )
 
-        phase_labels = phase_axis.get_legend_handles_labels()[1]
+        spin_flip_labels = phase_axis.get_legend_handles_labels()[1]
         angle_labels = angle_axis.get_legend_handles_labels()[1]
 
-        self.assertIn("ϕ, фаза СОВ", phase_labels)
+        self.assertEqual(phase_axis.get_title(), "Вероятность изменения спина после СОВ")
+        self.assertIn("начальный ↑: ↑→↓", spin_flip_labels)
+        self.assertIn("начальный ↓: ↓→↑", spin_flip_labels)
         self.assertIn("φ, угол траектории после взаимодействия", angle_labels)
 
 

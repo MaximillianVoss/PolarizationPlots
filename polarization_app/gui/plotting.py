@@ -127,10 +127,22 @@ def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, 
     x_values = frame[x_column].to_numpy(dtype=float)
 
     phase_axis.clear()
-    phase_axis.set_title("Траекторная фаза")
-    phase_axis.plot(x_values, frame["phase_rad"].to_numpy(dtype=float), label="ϕ, фаза СОВ", color="#2f5597")
+    phase_axis.set_title("Вероятность изменения спина после СОВ")
+    phase_axis.plot(
+        x_values,
+        frame["p_flip_initial_up"].to_numpy(dtype=float),
+        label="начальный ↑: ↑→↓",
+        color="#2f5597",
+    )
+    phase_axis.plot(
+        x_values,
+        frame["p_flip_initial_down"].to_numpy(dtype=float),
+        label="начальный ↓: ↓→↑",
+        color="#cf2f2f",
+    )
     phase_axis.set_xlabel(x_label)
-    phase_axis.set_ylabel("ϕ, рад")
+    phase_axis.set_ylabel("P(изменение спина)")
+    phase_axis.set_ylim(-0.03, 1.03)
     phase_axis.grid(True, which="both")
     phase_axis.legend()
 
