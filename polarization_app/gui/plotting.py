@@ -206,6 +206,45 @@ def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, 
             )
 
 
+def draw_rashba_surface_plots(transmission_axis, polarization_axis, frame) -> None:
+    energies_eV = frame["energy_eV"].to_numpy(dtype=float)
+
+    transmission_axis.clear()
+    transmission_axis.set_title("Вероятности прохождения через поверхность с Рашбой")
+    transmission_axis.plot(
+        energies_eV,
+        frame["t_plus_sq"].to_numpy(dtype=float),
+        label="t_+^2, вышел ↑",
+        color="#2f5597",
+    )
+    transmission_axis.plot(
+        energies_eV,
+        frame["t_minus_sq"].to_numpy(dtype=float),
+        label="t_-^2, вышел ↓",
+        color="#cf2f2f",
+    )
+    transmission_axis.set_xlabel("Энергия, эВ")
+    transmission_axis.set_ylabel("Вероятность")
+    max_value = float(np.nanmax(frame[["t_plus_sq", "t_minus_sq"]].to_numpy(dtype=float)))
+    transmission_axis.set_ylim(-0.03, max(1.03, max_value * 1.08))
+    transmission_axis.grid(True, which="both")
+    transmission_axis.legend()
+
+    polarization_axis.clear()
+    polarization_axis.set_title("Поляризация вышедших электронов")
+    polarization_axis.plot(
+        energies_eV,
+        frame["polarization"].to_numpy(dtype=float),
+        label="P=(t_+^2-t_-^2)/(t_+^2+t_-^2)",
+        color="#2f7f3f",
+    )
+    polarization_axis.set_xlabel("Энергия, эВ")
+    polarization_axis.set_ylabel("P")
+    polarization_axis.set_ylim(-1.05, 1.05)
+    polarization_axis.grid(True, which="both")
+    polarization_axis.legend()
+
+
 def build_geometry_preview_data(
     geometry: GeometryContext,
     atom_selection: AtomSelection,
@@ -583,6 +622,7 @@ __all__ = [
     "zoom_axis_around_point",
     "draw_spin_plots",
     "draw_boundary_utility_plots",
+    "draw_rashba_surface_plots",
     "build_geometry_preview_data",
     "draw_geometry_preview",
     "capture_view_limits",

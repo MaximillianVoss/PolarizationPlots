@@ -11,6 +11,7 @@ class AppBindingProbe(App):
         self.right_scheduled_calls: list[int] = []
         self.trajectory_scheduled_calls: list[int] = []
         self.trajectory_start_calls = 0
+        self.rashba_update_calls = 0
         super().__init__()
         self.withdraw()
         self.left_direct_calls = 0
@@ -18,6 +19,7 @@ class AppBindingProbe(App):
         self.right_scheduled_calls.clear()
         self.trajectory_scheduled_calls.clear()
         self.trajectory_start_calls = 0
+        self.rashba_update_calls = 0
 
     def update_output_left(self) -> None:
         self.left_direct_calls += 1
@@ -33,6 +35,9 @@ class AppBindingProbe(App):
 
     def _start_trajectory_update(self, request) -> None:
         self.trajectory_start_calls += 1
+
+    def _update_rashba_surface(self) -> None:
+        self.rashba_update_calls += 1
 
 
 class AppBindingsTestCase(unittest.TestCase):
@@ -138,6 +143,18 @@ class AppBindingsTestCase(unittest.TestCase):
                 action()
                 self.assertEqual(len(self.app.left_scheduled_calls), left_before)
                 self.assertEqual(len(self.app.right_scheduled_calls), right_before)
+
+    def test_rashba_controls_refresh_only_rashba_tab(self):
+        left_before = len(self.app.left_scheduled_calls)
+        right_before = len(self.app.right_scheduled_calls)
+        trajectory_before = len(self.app.trajectory_scheduled_calls)
+
+        self.app.rashba_alpha.set(self.app.rashba_alpha.get() + 0.01)
+
+        self.assertEqual(len(self.app.left_scheduled_calls), left_before)
+        self.assertEqual(len(self.app.right_scheduled_calls), right_before)
+        self.assertEqual(len(self.app.trajectory_scheduled_calls), trajectory_before)
+        self.assertEqual(self.app.rashba_update_calls, 1)
 
     def test_trajectory_tab_has_scrollable_controls(self):
         self.assertGreaterEqual(len(self.app._scrollable_control_canvases), 1)

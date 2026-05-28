@@ -44,6 +44,7 @@ from polarization_app.gui.plotting import (
     capture_view_limits,
     draw_boundary_utility_plots,
     draw_geometry_preview,
+    draw_rashba_surface_plots,
     draw_spin_plots,
     draw_trajectory_sweep_plots,
     restore_view_limits,
@@ -53,6 +54,7 @@ from polarization_app.gui.plotting import (
 )
 from polarization_app.physics.boundary_reflection import compute_boundary_point, compute_boundary_reflection_curves
 from polarization_app.physics.phase_integrals import exponential_chi, interpolate_thomas_fermi_chi
+from polarization_app.physics.rashba_surface import RashbaSurfaceRequest, RashbaSurfaceResult, compute_rashba_surface
 from polarization_app.physics.trajectory_phase import DEFAULT_THOMAS_FERMI_B_BOHR, ELECTRON_MASS_AMU
 
 
@@ -60,6 +62,14 @@ logger = logging.getLogger(__name__)
 CONTROL_PANEL_WIDTH = 360
 CONTROL_WRAP_LENGTH = 300
 VALIDATION_ERROR_COLOR = "#b00020"
+RASHBA_SOURCE_ZERO = "Без объёмного переворота (Ver=0)"
+RASHBA_SOURCE_SPECTRUM = "Из вкладки «Спектры и формулы»"
+RASHBA_SOURCE_TRAJECTORY = "Из вкладки «Траекторный расчёт»"
+RASHBA_SOURCE_LABELS = (
+    RASHBA_SOURCE_ZERO,
+    RASHBA_SOURCE_SPECTRUM,
+    RASHBA_SOURCE_TRAJECTORY,
+)
 
 
 def configure_logging() -> None:
@@ -169,6 +179,7 @@ class App(tk.Tk):
         self.update_output_left()
         self.after(0, self.update_output_right)
         self.after(0, self._update_boundary_utility)
+        self.after(0, self._update_rashba_surface)
         self._set_text_output(
             self.trajectory_output,
             "[Траекторный расчёт]\nНастройте параметры и нажмите «Рассчитать». "
@@ -225,6 +236,14 @@ class App(tk.Tk):
         self.trajectory_sweep_label = tk.StringVar(value=TRAJECTORY_SWEEP_LABELS[TRAJECTORY_SWEEP_ENERGY])
         self.trajectory_auto = tk.BooleanVar(value=False)
         self.trajectory_parallel_workers = tk.IntVar(value=max(1, min(2, os.cpu_count() or 1)))
+        self.rashba_Emin = tk.DoubleVar(value=10.0)
+        self.rashba_Emax = tk.DoubleVar(value=1000.0)
+        self.rashba_Npts = tk.IntVar(value=240)
+        self.rashba_layer_thickness = tk.DoubleVar(value=1.0)
+        self.rashba_alpha = tk.DoubleVar(value=0.05)
+        self.rashba_theta_deg = tk.DoubleVar(value=45.0)
+        self.rashba_surface_potential = tk.DoubleVar(value=5.0)
+        self.rashba_source_label = tk.StringVar(value=RASHBA_SOURCE_ZERO)
         self.status_text = tk.StringVar(value="Готово.")
         self.formula_hint_text = tk.StringVar(value="")
 
@@ -232,6 +251,7 @@ class App(tk.Tk):
         self.spectrum_output: tk.Text | None = None
         self.boundary_output: tk.Text | None = None
         self.trajectory_output: tk.Text | None = None
+        self.rashba_output: tk.Text | None = None
         self.output: tk.Text | None = None
         self.n_auto_label: ttk.Label | None = None
         self.ax_sum = None
@@ -244,6 +264,8 @@ class App(tk.Tk):
         self.ax_trajectory_phase = None
         self.ax_trajectory_angle = None
         self.ax_trajectory_diagnostics = None
+        self.ax_rashba_transmission = None
+        self.ax_rashba_polarization = None
         self.canvas: FigureCanvasTkAgg | None = None
         self.fig: Figure | None = None
         self.geometry_canvas: FigureCanvasTkAgg | None = None
@@ -252,9 +274,12 @@ class App(tk.Tk):
         self.boundary_fig: Figure | None = None
         self.trajectory_canvas: FigureCanvasTkAgg | None = None
         self.trajectory_fig: Figure | None = None
+        self.rashba_canvas: FigureCanvasTkAgg | None = None
+        self.rashba_fig: Figure | None = None
         self._default_view_limits = None
         self._boundary_view_limits = None
         self._trajectory_view_limits = None
+        self._rashba_view_limits = None
         self._scheduled_left_after: str | None = None
         self._scheduled_right_after: str | None = None
         self._scheduled_trajectory_after: str | None = None
@@ -264,6 +289,7 @@ class App(tk.Tk):
         self._queued_trajectory_request: TrajectorySweepRequest | None = None
         self._latest_plot_payload: PlotComputationResult | None = None
         self._latest_trajectory_payload: TrajectorySweepResult | None = None
+        self._latest_rashba_payload: RashbaSurfaceResult | None = None
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="polarization")
         self._trajectory_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="trajectory-ui")
         self._scrollable_control_canvases: list[tk.Canvas] = []
@@ -284,15 +310,18 @@ class App(tk.Tk):
         spectrum_tab = ttk.Frame(notebook)
         boundary_tab = ttk.Frame(notebook)
         trajectory_tab = ttk.Frame(notebook)
+        rashba_tab = ttk.Frame(notebook)
         notebook.add(geometry_tab, text="Геометрия и переходы")
         notebook.add(spectrum_tab, text="Спектры и формулы")
         notebook.add(boundary_tab, text="Граница раздела")
         notebook.add(trajectory_tab, text="Траекторный расчёт")
+        notebook.add(rashba_tab, text="Рашба-поверхность")
 
         self._build_geometry_tab(geometry_tab)
         self._build_spectrum_tab(spectrum_tab)
         self._build_boundary_tab(boundary_tab)
         self._build_trajectory_tab(trajectory_tab)
+        self._build_rashba_tab(rashba_tab)
         self.bind_all("<MouseWheel>", self._on_controls_mousewheel)
         self.bind_all("<Button-4>", self._on_controls_mousewheel)
         self.bind_all("<Button-5>", self._on_controls_mousewheel)
@@ -396,6 +425,29 @@ class App(tk.Tk):
             output_panel,
             title="Сводка траекторного расчёта",
             height=12,
+        )
+
+    def _build_rashba_tab(self, panel) -> None:
+        panel.columnconfigure(0, weight=0, minsize=CONTROL_PANEL_WIDTH)
+        panel.columnconfigure(1, weight=1)
+        panel.rowconfigure(0, weight=1)
+
+        controls = self._build_scrollable_control_panel(panel, tooltip_text="Вертикальная прокрутка панели параметров Рашбы.")
+        self._build_rashba_section(controls, row=0)
+
+        body = ttk.Panedwindow(panel, orient=tk.VERTICAL)
+        body.grid(row=0, column=1, sticky="nsew", padx=(0, 6), pady=6)
+
+        plot_panel = ttk.Frame(body, padding=6)
+        output_panel = ttk.Frame(body, padding=6)
+        body.add(plot_panel, weight=4)
+        body.add(output_panel, weight=2)
+
+        self._build_rashba_plot_area(plot_panel)
+        self.rashba_output = self._build_text_output_panel(
+            output_panel,
+            title="Сводка прохождения через поверхность",
+            height=10,
         )
 
     def _build_geometry_section(self, parent, row: int) -> None:
@@ -823,6 +875,115 @@ class App(tk.Tk):
         )
         current_row += 1
 
+    def _build_rashba_section(self, parent, row: int) -> None:
+        section = ttk.LabelFrame(parent, text="Прохождение через поверхность с Рашбой", padding=10)
+        section.grid(row=row, column=0, sticky="ew")
+        section.columnconfigure(1, weight=1)
+
+        current_row = 0
+        ttk.Label(
+            section,
+            text=(
+                "Расчёт по RASBA_ALG: kx, ky, k'_y, R, T и итоговая поляризация после поверхности. "
+                "В базовом режиме Ver(+→-) и Ver(-→+) равны нулю."
+            ),
+            foreground="#555",
+            wraplength=CONTROL_WRAP_LENGTH,
+            justify="left",
+        ).grid(row=current_row, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        current_row += 1
+
+        source_label = ttk.Label(section, text="Источник Ver")
+        source_label.grid(row=current_row, column=0, sticky="w", pady=(6, 0))
+        self._attach_tooltip(
+            source_label,
+            "Откуда брать вероятности переворота спина до поверхности. Для текущего случая оставьте Ver=0.",
+        )
+        source_box = ttk.Combobox(
+            section,
+            textvariable=self.rashba_source_label,
+            values=list(RASHBA_SOURCE_LABELS),
+            state="readonly",
+            width=30,
+        )
+        source_box.grid(row=current_row, column=1, sticky="ew", padx=(8, 0), pady=(6, 0))
+        self._attach_tooltip(
+            source_box,
+            "Ver(+→-) и Ver(-→+) можно взять из уже рассчитанного спектра или траекторной вкладки.",
+        )
+        current_row += 1
+
+        ttk.Button(section, text="Рассчитать", command=self._update_rashba_surface).grid(
+            row=current_row, column=0, sticky="w", pady=(8, 6)
+        )
+        current_row += 1
+
+        self._make_slider(
+            section,
+            "Emin (эВ)",
+            self.rashba_Emin,
+            1.0,
+            1000.0,
+            current_row,
+            description="Нижняя граница энергетического диапазона на оси X",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "Emax (эВ)",
+            self.rashba_Emax,
+            10.0,
+            10000.0,
+            current_row,
+            description="Верхняя граница энергетического диапазона на оси X",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "N точек",
+            self.rashba_Npts,
+            20,
+            1000,
+            current_row,
+            description="Количество точек энергетической сетки",
+            resolution=1,
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "d слоя (Å)",
+            self.rashba_layer_thickness,
+            0.1,
+            10.0,
+            current_row,
+            description="Толщина слоя Рашбы; в расчёте переводится из Å в атомные единицы длины",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "α Рашбы (а.е.)",
+            self.rashba_alpha,
+            0.0,
+            1.0,
+            current_row,
+            description="Коэффициент Рашбы в атомных единицах; α=0 отключает спиновое расщепление на поверхности",
+            resolution=0.001,
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "θ вылета (°)",
+            self.rashba_theta_deg,
+            0.0,
+            89.0,
+            current_row,
+            description="Угол вылета относительно нормали к поверхности: 0° вдоль нормали, 90° вдоль поверхности",
+        ); current_row += 1
+        self._make_slider(
+            section,
+            "U поверхности (эВ)",
+            self.rashba_surface_potential,
+            0.0,
+            20.0,
+            current_row,
+            description="Поверхностный потенциальный барьер; при E <= U прохождение обнуляется",
+        ); current_row += 1
+
     def _build_spin_plot_area(self, panel) -> None:
         panel.columnconfigure(0, weight=1)
         panel.rowconfigure(1, weight=1)
@@ -878,6 +1039,25 @@ class App(tk.Tk):
         self.trajectory_canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew")
         self.trajectory_canvas.mpl_connect("scroll_event", self._on_trajectory_plot_scroll)
 
+    def _build_rashba_plot_area(self, panel) -> None:
+        panel.columnconfigure(0, weight=1)
+        panel.rowconfigure(1, weight=1)
+
+        zoom_bar = ttk.Frame(panel)
+        zoom_bar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        ttk.Label(zoom_bar, text="Колесо мыши масштабирует графики прохождения через поверхность.").pack(side="left")
+        ttk.Button(zoom_bar, text="Сбросить масштаб", command=self._reset_rashba_zoom).pack(side="right")
+
+        self.rashba_fig = Figure(figsize=(7.4, 6.0), dpi=100)
+        self.ax_rashba_transmission = self.rashba_fig.add_subplot(211)
+        self.ax_rashba_polarization = self.rashba_fig.add_subplot(212)
+        for axis in (self.ax_rashba_transmission, self.ax_rashba_polarization):
+            axis.grid(True, which="both")
+
+        self.rashba_canvas = FigureCanvasTkAgg(self.rashba_fig, master=panel)
+        self.rashba_canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew")
+        self.rashba_canvas.mpl_connect("scroll_event", self._on_rashba_plot_scroll)
+
     def _build_geometry_preview_area(self, panel) -> None:
         panel.columnconfigure(0, weight=1)
         panel.columnconfigure(1, weight=0)
@@ -925,7 +1105,7 @@ class App(tk.Tk):
         output.configure(yscrollcommand=text_scrollbar.set)
         return output
 
-    def _build_scrollable_control_panel(self, parent) -> ttk.Frame:
+    def _build_scrollable_control_panel(self, parent, *, tooltip_text: str = "Вертикальная прокрутка панели параметров траекторного расчёта.") -> ttk.Frame:
         container = ttk.Frame(parent, padding=(6, 6, 6, 6), width=CONTROL_PANEL_WIDTH)
         container.grid(row=0, column=0, sticky="nsw")
         container.rowconfigure(0, weight=1)
@@ -936,7 +1116,7 @@ class App(tk.Tk):
         canvas.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
         canvas.configure(yscrollcommand=scrollbar.set)
-        self._attach_tooltip(scrollbar, "Вертикальная прокрутка панели параметров траекторного расчёта.")
+        self._attach_tooltip(scrollbar, tooltip_text)
 
         content = ttk.Frame(canvas)
         content.columnconfigure(0, weight=1)
@@ -1039,6 +1219,18 @@ class App(tk.Tk):
             variable.trace_add("write", lambda *_: self._on_trajectory_inputs_changed())
 
         self.trajectory_auto.trace_add("write", lambda *_: self._on_trajectory_auto_toggle())
+
+        for variable in (
+            self.rashba_Emin,
+            self.rashba_Emax,
+            self.rashba_Npts,
+            self.rashba_layer_thickness,
+            self.rashba_alpha,
+            self.rashba_theta_deg,
+            self.rashba_surface_potential,
+            self.rashba_source_label,
+        ):
+            variable.trace_add("write", lambda *_: self._update_rashba_surface())
 
     def _attach_tooltip(self, widget, text: str):
         if text:
@@ -1184,6 +1376,97 @@ class App(tk.Tk):
             min_steps=30,
             max_refinements=6,
             parallel_workers=int(self.trajectory_parallel_workers.get()),
+        )
+
+    def _current_rashba_request(self) -> RashbaSurfaceRequest:
+        energy_min = float(self.rashba_Emin.get())
+        energy_max = float(self.rashba_Emax.get())
+        point_count = int(self.rashba_Npts.get())
+        energies_eV = np.linspace(energy_min, energy_max, point_count, dtype=float)
+        ver_up_to_down, ver_down_to_up = self._rashba_volume_flip_probabilities(energies_eV)
+        return RashbaSurfaceRequest(
+            energy_min_eV=energy_min,
+            energy_max_eV=energy_max,
+            point_count=point_count,
+            layer_thickness_ang=float(self.rashba_layer_thickness.get()),
+            rashba_alpha_au=float(self.rashba_alpha.get()),
+            emission_angle_deg=float(self.rashba_theta_deg.get()),
+            surface_potential_eV=float(self.rashba_surface_potential.get()),
+            ver_up_to_down=ver_up_to_down,
+            ver_down_to_up=ver_down_to_up,
+        )
+
+    def _rashba_volume_flip_probabilities(self, target_energies_eV: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        source = self.rashba_source_label.get()
+        zeros = np.zeros_like(target_energies_eV, dtype=float)
+        if source == RASHBA_SOURCE_ZERO:
+            return zeros, zeros
+
+        if source == RASHBA_SOURCE_SPECTRUM:
+            payload = self._latest_plot_payload
+            if payload is None:
+                raise RuntimeError("Сначала постройте графики на вкладке «Спектры и формулы» или выберите Ver=0.")
+            source_energies = payload.result.grid["E_eV"].to_numpy(dtype=float)
+            spin_curves = payload.result.spin_curves
+            ver_up_to_down = (
+                np.asarray(spin_curves["sum_check_up"], dtype=float)
+                - np.asarray(spin_curves["spin_mean_up"], dtype=float)
+            ) / 2.0
+            ver_down_to_up = (
+                np.asarray(spin_curves["sum_check_dn"], dtype=float)
+                + np.asarray(spin_curves["spin_mean_dn"], dtype=float)
+            ) / 2.0
+            return (
+                self._interpolate_probability_curve(source_energies, ver_up_to_down, target_energies_eV),
+                self._interpolate_probability_curve(source_energies, ver_down_to_up, target_energies_eV),
+            )
+
+        if source == RASHBA_SOURCE_TRAJECTORY:
+            payload = self._latest_trajectory_payload
+            if payload is None:
+                raise RuntimeError("Сначала выполните траекторный расчёт или выберите Ver=0.")
+            frame = payload.frame
+            return (
+                self._interpolate_probability_curve(
+                    frame["energy_eV"].to_numpy(dtype=float),
+                    frame["p_flip_initial_up"].to_numpy(dtype=float),
+                    target_energies_eV,
+                ),
+                self._interpolate_probability_curve(
+                    frame["energy_eV"].to_numpy(dtype=float),
+                    frame["p_flip_initial_down"].to_numpy(dtype=float),
+                    target_energies_eV,
+                ),
+            )
+
+        raise RuntimeError(f"Неизвестный источник Ver: {source}")
+
+    @staticmethod
+    def _interpolate_probability_curve(
+        source_energies_eV: np.ndarray,
+        source_probabilities: np.ndarray,
+        target_energies_eV: np.ndarray,
+    ) -> np.ndarray:
+        source_energies_eV = np.asarray(source_energies_eV, dtype=float)
+        source_probabilities = np.asarray(source_probabilities, dtype=float)
+        target_energies_eV = np.asarray(target_energies_eV, dtype=float)
+        mask = np.isfinite(source_energies_eV) & np.isfinite(source_probabilities)
+        source_energies_eV = source_energies_eV[mask]
+        source_probabilities = np.clip(source_probabilities[mask], 0.0, 1.0)
+        if source_energies_eV.size == 0:
+            raise RuntimeError("В выбранном источнике Ver нет корректных точек.")
+
+        order = np.argsort(source_energies_eV)
+        sorted_energies = source_energies_eV[order]
+        sorted_probabilities = source_probabilities[order]
+        unique_energies, unique_indices = np.unique(sorted_energies, return_index=True)
+        unique_probabilities = sorted_probabilities[unique_indices]
+        if unique_energies.size == 1:
+            return np.full_like(target_energies_eV, float(unique_probabilities[0]), dtype=float)
+        return np.clip(
+            np.interp(target_energies_eV, unique_energies, unique_probabilities),
+            0.0,
+            1.0,
         )
 
     def _trajectory_validation_errors(self) -> dict[str, list[str]]:
@@ -1595,6 +1878,8 @@ class App(tk.Tk):
             f"Готово: {request.formula_label}, {len(energies_eV)} энергий, {len(request.phase_request.a_list_ang)} атомов."
         )
         logger.info("RIGHT | сетка рассчитана: %d точек", len(result.grid))
+        if self.rashba_source_label.get() == RASHBA_SOURCE_SPECTRUM:
+            self._update_rashba_surface()
 
     def _display_right_error(self, error: Exception) -> None:
         self._latest_plot_payload = None
@@ -1686,6 +1971,23 @@ class App(tk.Tk):
                 self.trajectory_output.insert(tk.END, f"\n[Trajectory Scroll] Ошибка: {ex}\n")
                 self.trajectory_output.see(tk.END)
 
+    def _on_rashba_plot_scroll(self, event) -> None:
+        if event.inaxes not in (self.ax_rashba_transmission, self.ax_rashba_polarization):
+            return
+        factor = 0.85 if event.button == "up" else 1.18
+        try:
+            if event.xdata is None or event.ydata is None:
+                zoom_axis(event.inaxes, factor)
+            else:
+                zoom_axis_around_point(event.inaxes, factor, event.xdata, event.ydata)
+            if self.rashba_canvas is not None:
+                self.rashba_canvas.draw_idle()
+        except Exception as ex:
+            logger.exception("RASHBA_SCROLL | ошибка")
+            if self.rashba_output is not None:
+                self.rashba_output.insert(tk.END, f"\n[Rashba Scroll] Ошибка: {ex}\n")
+                self.rashba_output.see(tk.END)
+
     def _reset_zoom(self) -> None:
         if not self._default_view_limits:
             return
@@ -1721,6 +2023,19 @@ class App(tk.Tk):
             if self.trajectory_output is not None:
                 self.trajectory_output.insert(tk.END, f"\n[Reset Trajectory Zoom] Ошибка: {ex}\n")
                 self.trajectory_output.see(tk.END)
+
+    def _reset_rashba_zoom(self) -> None:
+        if not self._rashba_view_limits:
+            return
+        try:
+            restore_view_limits(self._rashba_view_limits)
+            if self.rashba_canvas is not None:
+                self.rashba_canvas.draw_idle()
+        except Exception as ex:
+            logger.exception("RESET_RASHBA_ZOOM | ошибка")
+            if self.rashba_output is not None:
+                self.rashba_output.insert(tk.END, f"\n[Reset Rashba Zoom] Ошибка: {ex}\n")
+                self.rashba_output.see(tk.END)
 
     def _set_text_output(self, target: tk.Text | None, text: str) -> None:
         if target is None:
@@ -1780,6 +2095,40 @@ class App(tk.Tk):
 
         summary = self._format_boundary_summary(curves, point_result)
         self._set_text_output(self.boundary_output, summary)
+
+    def _update_rashba_surface(self) -> None:
+        if self._closing:
+            return
+        if (
+            self.rashba_fig is None
+            or self.rashba_canvas is None
+            or self.ax_rashba_transmission is None
+            or self.ax_rashba_polarization is None
+        ):
+            return
+        try:
+            request = self._current_rashba_request()
+            result = compute_rashba_surface(request)
+        except Exception as ex:
+            logger.exception("RASHBA | ошибка расчёта")
+            self._latest_rashba_payload = None
+            for axis in (self.ax_rashba_transmission, self.ax_rashba_polarization):
+                axis.clear()
+                axis.text(0.05, 0.95, f"Ошибка: {ex}", transform=axis.transAxes, va="top", ha="left")
+                axis.grid(True, which="both")
+            if self.rashba_canvas is not None:
+                self.rashba_canvas.draw_idle()
+            self._set_text_output(self.rashba_output, f"[Ошибка расчёта Рашбы]\n{ex}\n")
+            self.status_text.set(f"Ошибка расчёта Рашбы: {ex}")
+            return
+
+        self._latest_rashba_payload = result
+        draw_rashba_surface_plots(self.ax_rashba_transmission, self.ax_rashba_polarization, result.frame)
+        self.rashba_fig.tight_layout()
+        self._rashba_view_limits = capture_view_limits(self.ax_rashba_transmission, self.ax_rashba_polarization)
+        self.rashba_canvas.draw_idle()
+        self._set_text_output(self.rashba_output, self._format_rashba_summary(result))
+        self.status_text.set(f"Расчёт Рашбы готов: {len(result.frame)} точек.")
 
     def _update_trajectory_utility(self) -> None:
         self._submit_trajectory_update()
@@ -1885,6 +2234,8 @@ class App(tk.Tk):
                 f"Траекторный расчёт готов с ошибками: {converged_count}/{len(result.frame)} точек, "
                 f"{result.elapsed_ms:.0f} мс."
             )
+        if self.rashba_source_label.get() == RASHBA_SOURCE_TRAJECTORY:
+            self._update_rashba_surface()
 
     def _display_trajectory_error(self, error: Exception) -> None:
         self._latest_trajectory_payload = None
@@ -1928,6 +2279,33 @@ class App(tk.Tk):
             "\n"
             f"По диапазону: R в пределах {min_reflection:.6g} .. {max_reflection:.6g}\n"
             f"Диапазон реализуемых β: {beta_range}\n"
+        )
+
+    def _format_rashba_summary(self, result: RashbaSurfaceResult) -> str:
+        request = result.request
+        frame = result.frame
+
+        def value_range(column: str) -> str:
+            values = frame[column].to_numpy(dtype=float)
+            finite_values = values[np.isfinite(values)]
+            if finite_values.size == 0:
+                return "нет корректных точек"
+            return f"{float(np.nanmin(finite_values)):.6g} .. {float(np.nanmax(finite_values)):.6g}"
+
+        return (
+            "[Рашба-поверхность]\n"
+            f"Источник Ver: {self.rashba_source_label.get()}\n"
+            f"E={request.energy_min_eV:.6g} .. {request.energy_max_eV:.6g} эВ, N={request.point_count}\n"
+            f"d={request.layer_thickness_ang:.6g} Å, α_R={request.rashba_alpha_au:.6g} а.е., "
+            f"θ={request.emission_angle_deg:.6g}°, U={request.surface_potential_eV:.6g} эВ\n"
+            "\n"
+            f"Ver(+→-): {value_range('ver_up_to_down')}\n"
+            f"Ver(-→+): {value_range('ver_down_to_up')}\n"
+            f"T_+^2: {value_range('transmission_up')}\n"
+            f"T_-^2: {value_range('transmission_down')}\n"
+            f"t_+^2: {value_range('t_plus_sq')}\n"
+            f"t_-^2: {value_range('t_minus_sq')}\n"
+            f"P: {value_range('polarization')}\n"
         )
 
     def _format_trajectory_summary(self, result: TrajectorySweepResult) -> str:
