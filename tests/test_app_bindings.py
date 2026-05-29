@@ -202,6 +202,8 @@ class AppBindingsTestCase(unittest.TestCase):
         self.assertTrue(any("Вертикальная прокрутка панели параметров" in text for text in tooltip_texts))
         self.assertTrue(any("Заряд ядра атома" in text for text in tooltip_texts))
         self.assertTrue(any("Масса частицы" in text for text in tooltip_texts))
+        self.assertTrue(any("Прицельное расстояние r_п" in text for text in tooltip_texts))
+        self.assertFalse(any("Параметр удара" in text for text in tooltip_texts))
         self.assertTrue(any("Угловой шаг интегрирования" in text for text in tooltip_texts))
 
     def test_trajectory_invalid_parameter_is_shown_near_control(self):

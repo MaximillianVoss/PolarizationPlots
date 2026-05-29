@@ -759,7 +759,10 @@ class App(tk.Tk):
             0.05,
             5.0,
             current_row,
-            description="Параметр удара r_п; используется, когда ось X не r_п",
+            description=(
+                "Прицельное расстояние r_п: минимальное расстояние от электрона до атома "
+                "по невозмущённой прямой траектории; используется, когда ось X не r_п"
+            ),
             validation_key="impact_fixed",
         ); current_row += 1
         self._make_slider(
@@ -769,7 +772,10 @@ class App(tk.Tk):
             0.05,
             5.0,
             current_row,
-            description="Нижняя граница параметра удара для sweep по r_п; при max_steps поднимите до 0.25-0.3 Å",
+            description=(
+                "Нижняя граница прицельного расстояния r_п для sweep; "
+                "при max_steps поднимите до 0.25-0.3 Å"
+            ),
             validation_key="impact_min",
         ); current_row += 1
         self._make_slider(
@@ -779,7 +785,7 @@ class App(tk.Tk):
             0.1,
             8.0,
             current_row,
-            description="Верхняя граница параметра удара для sweep по r_п",
+            description="Верхняя граница прицельного расстояния r_п для sweep",
             validation_key="impact_max",
         ); current_row += 1
         self._make_slider(
