@@ -28,7 +28,7 @@ from polarization_app.physics.phase_integrals import (
 ATOMIC_MASS_UNIT_KG = 1.66053906660e-27
 ELECTRON_MASS_AMU = ELECTRON_MASS / ATOMIC_MASS_UNIT_KG
 ATOMIC_SPEED_MPS = LIGHT_SPEED / INVERSE_FINE_STRUCTURE
-DEFAULT_THOMAS_FERMI_B_BOHR = 0.885
+DEFAULT_THOMAS_FERMI_B_BOHR = 0.5 * ((3.0 * np.pi / 4.0) ** (2.0 / 3.0))
 DEFAULT_SPIN_ORBIT_C1 = 1.0 / (4.0 * INVERSE_FINE_STRUCTURE * INVERSE_FINE_STRUCTURE)
 
 
@@ -76,21 +76,19 @@ def speed_mps_to_atomic_units(speed_mps: float | np.ndarray) -> np.ndarray:
 def thomas_fermi_potential_au(
     r_bohr: float | np.ndarray,
     atomic_number: float,
-    b_bohr: float = DEFAULT_THOMAS_FERMI_B_BOHR,
     chi: ChiFunction = spline_thomas_fermi_chi,
 ) -> np.ndarray:
     r = np.asarray(r_bohr, dtype=float)
     if np.any(r <= 0.0):
         raise ValueError("Расстояние r должно быть положительным.")
     z = float(atomic_number)
-    x = (z ** (1.0 / 3.0)) * r / float(b_bohr)
+    x = (z ** (1.0 / 3.0)) * r / DEFAULT_THOMAS_FERMI_B_BOHR
     return -z * chi(x) / r
 
 
 def thomas_fermi_potential_derivative_au(
     r_bohr: float | np.ndarray,
     atomic_number: float,
-    b_bohr: float = DEFAULT_THOMAS_FERMI_B_BOHR,
     chi: ChiFunction = spline_thomas_fermi_chi,
     chi_derivative: ChiFunction = spline_thomas_fermi_chi_derivative,
 ) -> np.ndarray:
@@ -98,7 +96,7 @@ def thomas_fermi_potential_derivative_au(
     if np.any(r <= 0.0):
         raise ValueError("Расстояние r должно быть положительным.")
     z = float(atomic_number)
-    b = float(b_bohr)
+    b = DEFAULT_THOMAS_FERMI_B_BOHR
     x = (z ** (1.0 / 3.0)) * r / b
     return z * chi(x) / (r * r) - (z ** (4.0 / 3.0)) * chi_derivative(x) / (r * b)
 
@@ -112,7 +110,6 @@ def compute_atom_trajectory_phase(
     r0_ang: float,
     angle_step_rad: float,
     orbital_l: int = 0,
-    b_bohr: float = DEFAULT_THOMAS_FERMI_B_BOHR,
     min_steps: int = 30,
     max_refinements: int = 6,
     max_steps: int = 200_000,
@@ -125,7 +122,6 @@ def compute_atom_trajectory_phase(
         impact_parameter_ang=impact_parameter_ang,
         r0_ang=r0_ang,
         angle_step_rad=angle_step_rad,
-        b_bohr=b_bohr,
         min_steps=min_steps,
         max_refinements=max_refinements,
         max_steps=max_steps,
@@ -141,10 +137,9 @@ def compute_atom_trajectory_phase(
         impact_parameter_bohr=impact_bohr,
         r0_bohr=r0_bohr,
         speed_au=speed_au,
-        b_bohr=b_bohr,
         chi=chi,
     )
-    u0_au = _potential_scalar(r0_bohr, atomic_number, b_bohr=b_bohr, chi=chi)
+    u0_au = _potential_scalar(r0_bohr, atomic_number, chi=chi)
     dt_initial_au = float(angle_step_rad) * (r_min_bohr * r_min_bohr) / (impact_bohr * speed_au)
 
     last_result: AtomTrajectoryResult | None = None
@@ -156,7 +151,6 @@ def compute_atom_trajectory_phase(
             atomic_number=float(atomic_number),
             impact_parameter_ang=float(impact_parameter_ang),
             r0_ang=float(r0_ang),
-            b_bohr=float(b_bohr),
             angle_step_rad=float(angle_step_rad),
             speed_mps=speed_mps,
             speed_au=speed_au,
@@ -196,13 +190,12 @@ def find_minimum_approach_bohr(
     impact_parameter_bohr: float,
     r0_bohr: float,
     speed_au: float,
-    b_bohr: float = DEFAULT_THOMAS_FERMI_B_BOHR,
     chi: ChiFunction = spline_thomas_fermi_chi,
 ) -> float:
     if impact_parameter_bohr <= 0.0 or r0_bohr <= impact_parameter_bohr:
         raise ValueError("Нужно выполнить 0 < r_п < r0.")
 
-    u0_au = _potential_scalar(r0_bohr, atomic_number, b_bohr=b_bohr, chi=chi)
+    u0_au = _potential_scalar(r0_bohr, atomic_number, chi=chi)
 
     def equation(r_bohr: float) -> float:
         return _radial_speed_squared(
@@ -212,7 +205,6 @@ def find_minimum_approach_bohr(
             r0_bohr=r0_bohr,
             u0_au=u0_au,
             speed_au=speed_au,
-            b_bohr=b_bohr,
             chi=chi,
         )
 
@@ -274,7 +266,6 @@ def _integrate_half_trajectory(
     atomic_number: float,
     impact_parameter_ang: float,
     r0_ang: float,
-    b_bohr: float,
     angle_step_rad: float,
     speed_mps: float,
     speed_au: float,
@@ -307,14 +298,12 @@ def _integrate_half_trajectory(
             r0_bohr=r0_bohr,
             u0_au=u0_au,
             speed_au=speed_au,
-            b_bohr=b_bohr,
             chi=chi,
         )
         angular_rate = impact_bohr * speed_au / (r_bohr * r_bohr)
         phase_rate = _trajectory_phase_rate_scalar(
             r_bohr,
             atomic_number_for_potential,
-            b_bohr=b_bohr,
             chi=chi,
             chi_derivative=chi_derivative,
             spin_orbit_c1=spin_orbit_c1,
@@ -350,7 +339,7 @@ def _integrate_half_trajectory(
         atomic_number=atomic_number,
         impact_parameter_ang=impact_parameter_ang,
         r0_ang=r0_ang,
-        b_bohr=b_bohr,
+        b_bohr=DEFAULT_THOMAS_FERMI_B_BOHR,
         angle_step_rad=angle_step_rad,
         speed_mps=speed_mps,
         speed_au=speed_au,
@@ -375,17 +364,15 @@ def _radial_speed(
     r0_bohr: float,
     u0_au: float,
     speed_au: float,
-    b_bohr: float,
     chi: ChiFunction,
 ) -> float:
     value = _radial_speed_squared(
         r_bohr,
         atomic_number=atomic_number,
-            impact_parameter_bohr=impact_parameter_bohr,
-            r0_bohr=r0_bohr,
-            u0_au=u0_au,
-            speed_au=speed_au,
-        b_bohr=b_bohr,
+        impact_parameter_bohr=impact_parameter_bohr,
+        r0_bohr=r0_bohr,
+        u0_au=u0_au,
+        speed_au=speed_au,
         chi=chi,
     )
     if value < 0.0 and abs(value) < 1e-12:
@@ -403,10 +390,9 @@ def _radial_speed_squared(
     r0_bohr: float,
     u0_au: float,
     speed_au: float,
-    b_bohr: float,
     chi: ChiFunction,
 ) -> float:
-    ur = _potential_scalar(r_bohr, atomic_number, b_bohr=b_bohr, chi=chi)
+    ur = _potential_scalar(r_bohr, atomic_number, chi=chi)
     centrifugal = (impact_parameter_bohr * impact_parameter_bohr * speed_au * speed_au) / (r_bohr * r_bohr)
     return float(speed_au * speed_au + 2.0 * (u0_au - ur) - centrifugal)
 
@@ -415,13 +401,12 @@ def _potential_scalar(
     r_bohr: float,
     atomic_number: float,
     *,
-    b_bohr: float,
     chi: ChiFunction,
 ) -> float:
     if r_bohr <= 0.0:
         raise ValueError("Расстояние r должно быть положительным.")
     z = float(atomic_number)
-    x = (z ** (1.0 / 3.0)) * float(r_bohr) / float(b_bohr)
+    x = (z ** (1.0 / 3.0)) * float(r_bohr) / DEFAULT_THOMAS_FERMI_B_BOHR
     return -z * _chi_scalar(chi, x) / float(r_bohr)
 
 
@@ -429,14 +414,13 @@ def _potential_derivative_scalar(
     r_bohr: float,
     atomic_number: float,
     *,
-    b_bohr: float,
     chi: ChiFunction,
     chi_derivative: ChiFunction,
 ) -> float:
     if r_bohr <= 0.0:
         raise ValueError("Расстояние r должно быть положительным.")
     z = float(atomic_number)
-    b = float(b_bohr)
+    b = DEFAULT_THOMAS_FERMI_B_BOHR
     r = float(r_bohr)
     x = (z ** (1.0 / 3.0)) * r / b
     return z * _chi_scalar(chi, x) / (r * r) - (z ** (4.0 / 3.0)) * _chi_scalar(chi_derivative, x) / (r * b)
@@ -446,7 +430,6 @@ def _trajectory_phase_rate_scalar(
     r_bohr: float,
     atomic_number: float,
     *,
-    b_bohr: float,
     chi: ChiFunction,
     chi_derivative: ChiFunction,
     spin_orbit_c1: float,
@@ -455,7 +438,7 @@ def _trajectory_phase_rate_scalar(
     if r_bohr <= 0.0:
         raise ValueError("Расстояние r должно быть положительным.")
     z = float(atomic_number)
-    b = float(b_bohr)
+    b = DEFAULT_THOMAS_FERMI_B_BOHR
     r = float(r_bohr)
     x = (z ** (1.0 / 3.0)) * r / b
     orbital_factor = 2 * int(orbital_l) + 1
@@ -480,7 +463,6 @@ def _validate_inputs(
     impact_parameter_ang: float,
     r0_ang: float,
     angle_step_rad: float,
-    b_bohr: float,
     min_steps: int,
     max_refinements: int,
     max_steps: int,
@@ -494,8 +476,6 @@ def _validate_inputs(
         raise ValueError("r0 должно быть больше r_п.")
     if not np.isfinite(angle_step_rad) or angle_step_rad <= 0.0:
         raise ValueError("dθ должно быть положительным.")
-    if not np.isfinite(b_bohr) or b_bohr <= 0.0:
-        raise ValueError("b должно быть положительным.")
     if min_steps <= 0:
         raise ValueError("min_steps должен быть положительным.")
     if max_refinements < 0:

@@ -51,7 +51,6 @@ class TrajectorySweepRequest:
     angle_step_deg: float = 1.0
     angle_step_min_deg: float = 0.1
     angle_step_max_deg: float = 5.0
-    b_bohr: float = DEFAULT_THOMAS_FERMI_B_BOHR
     orbital_l: int = 1
     magnetic_m: int = 0
     random_m: bool = False
@@ -113,7 +112,7 @@ def trajectory_export_metadata(result: TrajectorySweepResult) -> dict[str, objec
         "angle_step_deg": request.angle_step_deg,
         "angle_step_min_deg": request.angle_step_min_deg,
         "angle_step_max_deg": request.angle_step_max_deg,
-        "b_bohr": request.b_bohr,
+        "b_bohr": DEFAULT_THOMAS_FERMI_B_BOHR,
         "orbital_l": request.orbital_l,
         "magnetic_m": request.magnetic_m,
         "random_m": request.random_m,
@@ -141,7 +140,6 @@ def _compute_sweep_row(
             r0_ang=request.r0_ang,
             angle_step_rad=float(np.deg2rad(angle_step_deg)),
             orbital_l=request.orbital_l,
-            b_bohr=request.b_bohr,
             min_steps=request.min_steps,
             max_refinements=request.max_refinements,
         )
@@ -218,7 +216,7 @@ def _failed_sweep_row(
         "atomic_number": float(request.atomic_number),
         "impact_parameter_ang": float(impact_parameter_ang),
         "r0_ang": float(request.r0_ang),
-        "b_bohr": float(request.b_bohr),
+        "b_bohr": DEFAULT_THOMAS_FERMI_B_BOHR,
         "angle_step_deg": float(angle_step_deg),
         "r_min_ang": np.nan,
         "theta_rad": np.nan,

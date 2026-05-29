@@ -13,6 +13,7 @@ from polarization_app.physics.phase_integrals import (
     spline_thomas_fermi_chi_derivative,
 )
 from polarization_app.physics.trajectory_phase import (
+    DEFAULT_THOMAS_FERMI_B_BOHR,
     ELECTRON_MASS_AMU,
     _trajectory_phase_rate_scalar,
     compute_atom_trajectory_phase,
@@ -21,6 +22,11 @@ from polarization_app.physics.trajectory_phase import (
 
 
 class TrajectoryPhaseTestCase(unittest.TestCase):
+    def test_thomas_fermi_b_matches_documented_constant(self):
+        expected = 0.5 * ((3.0 * np.pi / 4.0) ** (2.0 / 3.0))
+
+        self.assertAlmostEqual(DEFAULT_THOMAS_FERMI_B_BOHR, expected)
+
     def test_thomas_fermi_spline_and_derivative_are_finite(self):
         x_values = np.array([0.0, 0.1, 1.0, 10.0])
 
@@ -80,7 +86,6 @@ class TrajectoryPhaseTestCase(unittest.TestCase):
         rate = _trajectory_phase_rate_scalar(
             2.0,
             3.0,
-            b_bohr=0.885,
             chi=one,
             chi_derivative=zero,
             spin_orbit_c1=0.25,

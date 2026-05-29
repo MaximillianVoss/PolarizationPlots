@@ -180,7 +180,8 @@ class AppBindingsTestCase(unittest.TestCase):
         request = self.app._current_trajectory_request()
 
         self.assertNotIn("b Thomas-Fermi (a0)", labels)
-        self.assertAlmostEqual(request.b_bohr, DEFAULT_THOMAS_FERMI_B_BOHR)
+        self.assertFalse(hasattr(request, "b_bohr"))
+        self.assertAlmostEqual(DEFAULT_THOMAS_FERMI_B_BOHR, 0.5 * ((3.0 * 3.141592653589793 / 4.0) ** (2.0 / 3.0)))
 
     def test_slider_value_entry_updates_synced_variable(self):
         entry = next(

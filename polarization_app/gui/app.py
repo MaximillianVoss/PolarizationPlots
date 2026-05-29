@@ -1422,7 +1422,6 @@ class App(tk.Tk):
             angle_step_deg=float(self.trajectory_angle_step_deg.get()),
             angle_step_min_deg=float(self.trajectory_angle_step_min_deg.get()),
             angle_step_max_deg=float(self.trajectory_angle_step_max_deg.get()),
-            b_bohr=DEFAULT_THOMAS_FERMI_B_BOHR,
             orbital_l=int(self.trajectory_orbital_l.get()),
             magnetic_m=int(self.trajectory_magnetic_m.get()),
             random_m=bool(self.trajectory_random_m.get()),
@@ -2411,7 +2410,8 @@ class App(tk.Tk):
         return (
             "[Траекторный расчёт]\n"
             f"Режим: {TRAJECTORY_SWEEP_LABELS[request.sweep_mode]}, точек: {len(frame)}\n"
-            f"Z={request.atomic_number:.6g}, масса={request.mass_amu:.8g} а.е.м, b={request.b_bohr:.6g} a0\n"
+            f"Z={request.atomic_number:.6g}, масса={request.mass_amu:.8g} а.е.м, "
+            f"b={DEFAULT_THOMAS_FERMI_B_BOHR:.6g} a0 (константа)\n"
             f"r0={request.r0_ang:.6g} Å, min steps={request.min_steps}, max refinements={request.max_refinements}\n"
             f"L={request.orbital_l}, M={'random' if request.random_m else request.magnetic_m}\n"
             "\n"
