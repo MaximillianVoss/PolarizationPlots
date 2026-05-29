@@ -229,7 +229,6 @@ class App(tk.Tk):
         self.trajectory_angle_step_deg = tk.DoubleVar(value=3.0)
         self.trajectory_angle_step_min_deg = tk.DoubleVar(value=0.1)
         self.trajectory_angle_step_max_deg = tk.DoubleVar(value=5.0)
-        self.trajectory_b_bohr = tk.DoubleVar(value=DEFAULT_THOMAS_FERMI_B_BOHR)
         self.trajectory_Npts = tk.IntVar(value=25)
         self.trajectory_orbital_l = tk.IntVar(value=1)
         self.trajectory_magnetic_m = tk.IntVar(value=0)
@@ -830,16 +829,6 @@ class App(tk.Tk):
         ); current_row += 1
         self._make_slider(
             section,
-            "b Thomas-Fermi (a0)",
-            self.trajectory_b_bohr,
-            0.2,
-            2.0,
-            current_row,
-            description="Масштаб экранирования b в потенциале U(r), в атомных радиусах a0",
-            validation_key="b_bohr",
-        ); current_row += 1
-        self._make_slider(
-            section,
             "N точек графика",
             self.trajectory_Npts,
             1,
@@ -1217,7 +1206,6 @@ class App(tk.Tk):
             self.trajectory_angle_step_deg,
             self.trajectory_angle_step_min_deg,
             self.trajectory_angle_step_max_deg,
-            self.trajectory_b_bohr,
             self.trajectory_Npts,
             self.trajectory_orbital_l,
             self.trajectory_magnetic_m,
@@ -1434,7 +1422,7 @@ class App(tk.Tk):
             angle_step_deg=float(self.trajectory_angle_step_deg.get()),
             angle_step_min_deg=float(self.trajectory_angle_step_min_deg.get()),
             angle_step_max_deg=float(self.trajectory_angle_step_max_deg.get()),
-            b_bohr=float(self.trajectory_b_bohr.get()),
+            b_bohr=DEFAULT_THOMAS_FERMI_B_BOHR,
             orbital_l=int(self.trajectory_orbital_l.get()),
             magnetic_m=int(self.trajectory_magnetic_m.get()),
             random_m=bool(self.trajectory_random_m.get()),
@@ -1553,7 +1541,6 @@ class App(tk.Tk):
         angle_step = float(self.trajectory_angle_step_deg.get())
         angle_step_min = float(self.trajectory_angle_step_min_deg.get())
         angle_step_max = float(self.trajectory_angle_step_max_deg.get())
-        b_bohr = float(self.trajectory_b_bohr.get())
         point_count = int(self.trajectory_Npts.get())
         orbital_l = int(self.trajectory_orbital_l.get())
         magnetic_m = int(self.trajectory_magnetic_m.get())
@@ -1603,8 +1590,6 @@ class App(tk.Tk):
             add("angle_step_min", "dθ min должен быть меньше dθ max.")
             add("angle_step_max", "dθ max должен быть больше dθ min.")
 
-        if b_bohr <= 0.0:
-            add("b_bohr", "b Thomas-Fermi должен быть положительным.")
         if point_count < 1:
             add("point_count", "Нужна хотя бы одна точка.")
         if orbital_l < 0:

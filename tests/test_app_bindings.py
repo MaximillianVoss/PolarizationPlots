@@ -4,6 +4,7 @@ import tkinter as tk
 from polarization_app.application.formulas import FORMULA_LABELS, FORMULA_NEW
 from polarization_app.application.trajectory import TRAJECTORY_SWEEP_ANGLE_STEP, TRAJECTORY_SWEEP_ENERGY, TRAJECTORY_SWEEP_LABELS
 from polarization_app.gui.app import App
+from polarization_app.physics.trajectory_phase import DEFAULT_THOMAS_FERMI_B_BOHR
 
 
 class AppBindingProbe(App):
@@ -173,6 +174,13 @@ class AppBindingsTestCase(unittest.TestCase):
         labels = [getattr(widget, "_slider_label", "") for widget in self.app._slider_value_entries]
 
         self.assertIn("N точек графика", labels)
+
+    def test_thomas_fermi_b_is_constant_not_user_control(self):
+        labels = [getattr(widget, "_slider_label", "") for widget in self.app._slider_value_entries]
+        request = self.app._current_trajectory_request()
+
+        self.assertNotIn("b Thomas-Fermi (a0)", labels)
+        self.assertAlmostEqual(request.b_bohr, DEFAULT_THOMAS_FERMI_B_BOHR)
 
     def test_slider_value_entry_updates_synced_variable(self):
         entry = next(
