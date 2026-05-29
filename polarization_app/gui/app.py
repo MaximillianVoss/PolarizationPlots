@@ -173,6 +173,7 @@ class App(tk.Tk):
         self._create_variables()
         self._build_layout()
         self._bind_variable_handlers()
+        self._update_trajectory_control_states()
 
         self._recompute_lattice_radius()
         self._update_formula_hint()
@@ -296,6 +297,7 @@ class App(tk.Tk):
         self._active_scroll_canvas: tk.Canvas | None = None
         self._tooltip_targets: list[tk.Widget] = []
         self._slider_value_entries: list[ttk.Entry] = []
+        self._slider_controls: dict[str, dict[str, object]] = {}
         self._trajectory_error_labels: dict[str, ttk.Label] = {}
         self._closing = False
         self._geometry_change_in_progress = False
@@ -832,7 +834,7 @@ class App(tk.Tk):
         ); current_row += 1
         self._make_slider(
             section,
-            "N точек",
+            "N точек графика",
             self.trajectory_Npts,
             1,
             300,
@@ -1261,6 +1263,7 @@ class App(tk.Tk):
         label_widget = ttk.Label(label_frame, text=label)
         label_widget.grid(row=0, column=0, sticky="w")
         self._attach_tooltip(label_widget, description)
+        control_widgets = [label_widget]
         if description:
             hint_label = ttk.Label(
                 label_frame,
@@ -1272,10 +1275,12 @@ class App(tk.Tk):
             )
             hint_label.grid(row=1, column=0, sticky="w")
             self._attach_tooltip(hint_label, description)
+            control_widgets.append(hint_label)
 
         slider = ttk.Scale(frame, from_=min_value, to=max_value, orient="horizontal", variable=variable)
         slider.grid(row=1, column=0, sticky="ew", padx=(0, 8), pady=(2, 0))
         self._attach_tooltip(slider, description)
+        control_widgets.append(slider)
 
         def format_value(value):
             try:
@@ -1292,6 +1297,7 @@ class App(tk.Tk):
         setattr(value_entry, "_slider_label", label)
         setattr(value_entry, "_slider_variable", variable)
         self._slider_value_entries.append(value_entry)
+        control_widgets.append(value_entry)
         last_valid_text = value_text.get()
 
         def sync_entry_from_variable(*_):
@@ -1333,6 +1339,7 @@ class App(tk.Tk):
         value_entry.bind("<KP_Enter>", commit_entry_value)
         value_entry.bind("<FocusOut>", commit_entry_value)
         value_entry.bind("<Escape>", restore_entry_value)
+        error_label = None
         if validation_key is not None:
             error_label = ttk.Label(
                 frame,
@@ -1345,6 +1352,13 @@ class App(tk.Tk):
             error_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=(1, 0))
             error_label.grid_remove()
             self._trajectory_error_labels[validation_key] = error_label
+            self._slider_controls[validation_key] = {
+                "frame": frame,
+                "widgets": control_widgets,
+                "entry": value_entry,
+                "slider": slider,
+                "error_label": error_label,
+            }
 
     def _current_source_depth(self) -> int:
         return max(1, int(self.d_layer.get()))
@@ -1763,6 +1777,7 @@ class App(tk.Tk):
                 self._scheduled_right_after = None
 
     def _on_trajectory_inputs_changed(self) -> None:
+        self._update_trajectory_control_states()
         errors = self._update_trajectory_validation_hints()
         if errors:
             if self._scheduled_trajectory_after is not None:
@@ -1784,6 +1799,23 @@ class App(tk.Tk):
         elif self._scheduled_trajectory_after is not None:
             self.after_cancel(self._scheduled_trajectory_after)
             self._scheduled_trajectory_after = None
+
+    def _update_trajectory_control_states(self) -> None:
+        self._set_slider_control_enabled(
+            "angle_step",
+            self._trajectory_sweep_mode() != TRAJECTORY_SWEEP_ANGLE_STEP,
+        )
+
+    def _set_slider_control_enabled(self, validation_key: str, enabled: bool) -> None:
+        control = self._slider_controls.get(validation_key)
+        if not control:
+            return
+        state = ["!disabled"] if enabled else ["disabled"]
+        for widget in control["widgets"]:
+            try:
+                widget.state(state)
+            except (AttributeError, tk.TclError):
+                continue
 
     def _update_formula_hint(self) -> None:
         self.formula_hint_text.set(FORMULA_HINTS[self._selected_formula_variant()])
@@ -2396,7 +2428,7 @@ class App(tk.Tk):
             f"θ: {value_range('theta_deg', '°')}\n"
             f"φ: {value_range('trajectory_phi_deg', '°')}\n"
             f"r_min: {value_range('r_min_ang', ' Å')}\n"
-            f"steps: {steps_range}, max уточнений dt: {refinements_text}\n"
+            f"Внутренние шаги интегрирования: {steps_range}, max уточнений dt: {refinements_text}\n"
             f"Сошлось по правилу steps >= {request.min_steps}: {converged_count}/{len(frame)}\n"
             f"{error_text}"
             f"Время расчёта: {result.elapsed_ms:.3g} мс\n"

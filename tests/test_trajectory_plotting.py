@@ -36,11 +36,14 @@ class TrajectoryPlottingTestCase(unittest.TestCase):
 
         spin_flip_labels = phase_axis.get_legend_handles_labels()[1]
         angle_labels = angle_axis.get_legend_handles_labels()[1]
+        diagnostic_labels = [text.get_text() for text in diagnostic_axis.get_legend().get_texts()]
 
         self.assertEqual(phase_axis.get_title(), "Вероятность изменения спина после СОВ")
+        self.assertEqual(diagnostic_axis.get_title(), "r_min и внутренние шаги интегрирования")
         self.assertIn("начальный ↑: ↑→↓", spin_flip_labels)
         self.assertIn("начальный ↓: ↓→↑", spin_flip_labels)
         self.assertIn("φ, угол траектории после взаимодействия", angle_labels)
+        self.assertIn("steps, внутренние шаги интегрирования", diagnostic_labels)
 
 
 if __name__ == "__main__":

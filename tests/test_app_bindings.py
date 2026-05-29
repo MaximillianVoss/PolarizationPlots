@@ -2,6 +2,7 @@ import unittest
 import tkinter as tk
 
 from polarization_app.application.formulas import FORMULA_LABELS, FORMULA_NEW
+from polarization_app.application.trajectory import TRAJECTORY_SWEEP_ANGLE_STEP, TRAJECTORY_SWEEP_ENERGY, TRAJECTORY_SWEEP_LABELS
 from polarization_app.gui.app import App
 
 
@@ -156,6 +157,22 @@ class AppBindingsTestCase(unittest.TestCase):
         self.assertEqual(len(self.app.right_scheduled_calls), right_before)
         self.assertEqual(len(self.app.trajectory_scheduled_calls), trajectory_before)
         self.assertEqual(self.app.rashba_update_calls, 1)
+
+    def test_fixed_angle_step_is_disabled_when_sweeping_angle_step(self):
+        control_widgets = self.app._slider_controls["angle_step"]["widgets"]
+
+        self.app.trajectory_sweep_label.set(TRAJECTORY_SWEEP_LABELS[TRAJECTORY_SWEEP_ANGLE_STEP])
+
+        self.assertTrue(all("disabled" in widget.state() for widget in control_widgets))
+
+        self.app.trajectory_sweep_label.set(TRAJECTORY_SWEEP_LABELS[TRAJECTORY_SWEEP_ENERGY])
+
+        self.assertTrue(all("disabled" not in widget.state() for widget in control_widgets))
+
+    def test_trajectory_point_count_is_labeled_as_graph_points(self):
+        labels = [getattr(widget, "_slider_label", "") for widget in self.app._slider_value_entries]
+
+        self.assertIn("N точек графика", labels)
 
     def test_slider_value_entry_updates_synced_variable(self):
         entry = next(

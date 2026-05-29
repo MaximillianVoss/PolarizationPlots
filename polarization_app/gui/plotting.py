@@ -161,7 +161,7 @@ def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, 
     angle_axis.legend()
 
     diagnostic_axis.clear()
-    diagnostic_axis.set_title("r_min и число шагов")
+    diagnostic_axis.set_title("r_min и внутренние шаги интегрирования")
     diagnostic_axis.plot(
         x_values,
         frame["r_min_ang"].to_numpy(dtype=float),
@@ -181,11 +181,11 @@ def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, 
     steps_axis.plot(
         x_values,
         frame["steps"].to_numpy(dtype=float),
-        label="steps, шаги интегрирования",
+        label="steps, внутренние шаги интегрирования",
         color="#6b4fa3",
         linestyle="--",
     )
-    steps_axis.set_ylabel("шаги")
+    steps_axis.set_ylabel("внутренние шаги")
 
     handles, labels = diagnostic_axis.get_legend_handles_labels()
     step_handles, step_labels = steps_axis.get_legend_handles_labels()
