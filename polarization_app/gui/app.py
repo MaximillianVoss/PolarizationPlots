@@ -295,6 +295,7 @@ class App(tk.Tk):
         self._scrollable_control_canvases: list[tk.Canvas] = []
         self._active_scroll_canvas: tk.Canvas | None = None
         self._tooltip_targets: list[tk.Widget] = []
+        self._slider_value_entries: list[ttk.Entry] = []
         self._trajectory_error_labels: dict[str, ttk.Label] = {}
         self._closing = False
         self._geometry_change_in_progress = False
@@ -1284,10 +1285,54 @@ class App(tk.Tk):
             except Exception:
                 return str(value)
 
-        value_label = ttk.Label(frame, text=format_value(variable.get()))
-        value_label.grid(row=1, column=1, sticky="e", pady=(2, 0))
-        self._attach_tooltip(value_label, description)
-        variable.trace_add("write", lambda *_: value_label.config(text=format_value(variable.get())))
+        value_text = tk.StringVar(value=format_value(variable.get()))
+        value_entry = ttk.Entry(frame, textvariable=value_text, width=9, justify="right")
+        value_entry.grid(row=1, column=1, sticky="e", pady=(2, 0))
+        self._attach_tooltip(value_entry, description)
+        setattr(value_entry, "_slider_label", label)
+        setattr(value_entry, "_slider_variable", variable)
+        self._slider_value_entries.append(value_entry)
+        last_valid_text = value_text.get()
+
+        def sync_entry_from_variable(*_):
+            nonlocal last_valid_text
+            if value_entry.focus_get() is value_entry:
+                return
+            last_valid_text = format_value(variable.get())
+            value_text.set(last_valid_text)
+
+        def commit_entry_value(_event=None):
+            nonlocal last_valid_text
+            raw_value = value_text.get().strip().replace(",", ".")
+            try:
+                parsed_value = float(raw_value)
+            except ValueError:
+                value_text.set(last_valid_text)
+                return "break"
+
+            if not np.isfinite(parsed_value):
+                value_text.set(last_valid_text)
+                return "break"
+
+            parsed_value = min(max(parsed_value, float(min_value)), float(max_value))
+            if isinstance(variable, tk.IntVar) or resolution >= 1:
+                variable.set(int(round(parsed_value)))
+            else:
+                variable.set(parsed_value)
+            last_valid_text = format_value(variable.get())
+            value_text.set(last_valid_text)
+            return "break"
+
+        def restore_entry_value(_event=None):
+            value_text.set(last_valid_text)
+            return "break"
+
+        setattr(value_entry, "_commit_value", commit_entry_value)
+        variable.trace_add("write", sync_entry_from_variable)
+        value_entry.bind("<Return>", commit_entry_value)
+        value_entry.bind("<KP_Enter>", commit_entry_value)
+        value_entry.bind("<FocusOut>", commit_entry_value)
+        value_entry.bind("<Escape>", restore_entry_value)
         if validation_key is not None:
             error_label = ttk.Label(
                 frame,

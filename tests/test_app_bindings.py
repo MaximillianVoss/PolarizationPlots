@@ -1,4 +1,5 @@
 import unittest
+import tkinter as tk
 
 from polarization_app.application.formulas import FORMULA_LABELS, FORMULA_NEW
 from polarization_app.gui.app import App
@@ -155,6 +156,25 @@ class AppBindingsTestCase(unittest.TestCase):
         self.assertEqual(len(self.app.right_scheduled_calls), right_before)
         self.assertEqual(len(self.app.trajectory_scheduled_calls), trajectory_before)
         self.assertEqual(self.app.rashba_update_calls, 1)
+
+    def test_slider_value_entry_updates_synced_variable(self):
+        entry = next(
+            widget for widget in self.app._slider_value_entries
+            if getattr(widget, "_slider_label", "") == "Z (заряд ядра)"
+        )
+        self.app.right_scheduled_calls.clear()
+
+        entry.delete(0, tk.END)
+        entry.insert(0, "31,5")
+        entry._commit_value()
+
+        self.assertAlmostEqual(self.app.Z.get(), 31.5)
+        self.assertEqual(entry.get(), "31.5")
+        self.assertEqual(len(self.app.right_scheduled_calls), 1)
+
+        self.app.Z.set(29.0)
+
+        self.assertEqual(entry.get(), "29")
 
     def test_trajectory_tab_has_scrollable_controls(self):
         self.assertGreaterEqual(len(self.app._scrollable_control_canvases), 1)
