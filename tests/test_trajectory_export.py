@@ -13,6 +13,7 @@ from polarization_app.application.trajectory import (
     trajectory_export_metadata,
 )
 from polarization_app.application.trajectory_export import export_trajectory_bundle
+from polarization_app.application.trajectory_export import export_trajectory_file
 
 
 class TrajectoryExportTestCase(unittest.TestCase):
@@ -79,6 +80,33 @@ class TrajectoryExportTestCase(unittest.TestCase):
             with zipfile.ZipFile(exported["xlsx"]) as archive:
                 sheet_xml = archive.read("xl/worksheets/sheet1.xml").decode("utf-8")
             self.assertNotIn(">nan<", sheet_xml.lower())
+
+    def test_export_file_writes_only_selected_extension(self):
+        result = execute_trajectory_sweep(
+            TrajectorySweepRequest(
+                sweep_mode=TRAJECTORY_SWEEP_ENERGY,
+                point_count=1,
+                atomic_number=29.0,
+                energy_min_eV=100.0,
+                energy_max_eV=101.0,
+                impact_parameter_ang=0.8,
+                r0_ang=10.0,
+                angle_step_deg=3.0,
+            )
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exported = export_trajectory_file(
+                Path(tmpdir) / "trajectory.xml",
+                frame=result.frame,
+                metadata=trajectory_export_metadata(result),
+            )
+
+            self.assertEqual(exported.name, "trajectory.xml")
+            self.assertTrue(exported.exists())
+            self.assertFalse((Path(tmpdir) / "trajectory.json").exists())
+            self.assertFalse((Path(tmpdir) / "trajectory.xlsx").exists())
+            self.assertEqual(ET.parse(exported).getroot().tag, "trajectory_export")
 
 
 if __name__ == "__main__":

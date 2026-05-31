@@ -23,7 +23,9 @@ from polarization_app.application.formulas import (
     execute_formula_variant,
 )
 from polarization_app.application.geometry import GeometryContext, collect_atom_selection
+from polarization_app.application.rashba_export import export_rashba_surface_file
 from polarization_app.application.spectrum_export import export_spectrum_bundle
+from polarization_app.application.table_export import SUPPORTED_EXPORT_SUFFIXES
 from polarization_app.application.trajectory import (
     TRAJECTORY_AXIS_LABELS,
     TRAJECTORY_SWEEP_BY_LABEL,
@@ -36,7 +38,7 @@ from polarization_app.application.trajectory import (
     execute_trajectory_sweep,
     trajectory_export_metadata,
 )
-from polarization_app.application.trajectory_export import export_trajectory_bundle
+from polarization_app.application.trajectory_export import export_trajectory_file
 from polarization_app.domain.lattice import LatticeSearchRegion, estimate_lattice_search_region
 from polarization_app.domain.transitions import build_transition_matrices
 from polarization_app.gui.plotting import (
@@ -53,7 +55,12 @@ from polarization_app.gui.plotting import (
     zoom_axis_around_point,
 )
 from polarization_app.physics.boundary_reflection import compute_boundary_point, compute_boundary_reflection_curves
-from polarization_app.physics.phase_integrals import exponential_chi, interpolate_thomas_fermi_chi
+from polarization_app.physics.phase_integrals import (
+    DEFAULT_PHASE_C1,
+    DEFAULT_PHASE_C2,
+    exponential_chi,
+    interpolate_thomas_fermi_chi,
+)
 from polarization_app.physics.rashba_surface import RashbaSurfaceRequest, RashbaSurfaceResult, compute_rashba_surface
 from polarization_app.physics.trajectory_phase import DEFAULT_THOMAS_FERMI_B_BOHR, ELECTRON_MASS_AMU
 
@@ -70,6 +77,12 @@ RASHBA_SOURCE_LABELS = (
     RASHBA_SOURCE_SPECTRUM,
     RASHBA_SOURCE_TRAJECTORY,
 )
+EXPORT_FILETYPES = [
+    ("JSON (*.json)", "*.json"),
+    ("Excel (*.xlsx)", "*.xlsx"),
+    ("XML (*.xml)", "*.xml"),
+    ("Все файлы", "*.*"),
+]
 
 
 def configure_logging() -> None:
@@ -200,8 +213,6 @@ class App(tk.Tk):
 
         self.Z = tk.DoubleVar(value=29.0)
         self.b = tk.DoubleVar(value=0.53)
-        self.c1 = tk.DoubleVar(value=1.0)
-        self.c2 = tk.DoubleVar(value=1.0)
         self.dr = tk.DoubleVar(value=0.01)
         self.rmax = tk.DoubleVar(value=15.0)
         self.Emin = tk.DoubleVar(value=10.0)
@@ -496,8 +507,20 @@ class App(tk.Tk):
         current_row = 0
         self._make_slider(section, "Z (заряд ядра)", self.Z, 1, 92, current_row); current_row += 1
         self._make_slider(section, "b (Å)", self.b, 0.1, 2.0, current_row); current_row += 1
-        self._make_slider(section, "c1", self.c1, 0.1, 3.0, current_row); current_row += 1
-        self._make_slider(section, "c2", self.c2, 0.1, 3.0, current_row); current_row += 1
+        self._make_constant_value_row(
+            section,
+            "c1",
+            DEFAULT_PHASE_C1,
+            current_row,
+            description="Фиксированная константа модели; не является настраиваемым параметром",
+        ); current_row += 1
+        self._make_constant_value_row(
+            section,
+            "c2",
+            DEFAULT_PHASE_C2,
+            current_row,
+            description="Фиксированная константа модели; не является настраиваемым параметром",
+        ); current_row += 1
         self._make_slider(section, "dr (Å)", self.dr, 0.001, 0.1, current_row); current_row += 1
         self._make_slider(section, "r_max (Å)", self.rmax, 5.0, 40.0, current_row); current_row += 1
 
@@ -911,9 +934,10 @@ class App(tk.Tk):
         )
         current_row += 1
 
-        ttk.Button(section, text="Рассчитать", command=self._update_rashba_surface).grid(
-            row=current_row, column=0, sticky="w", pady=(8, 6)
-        )
+        actions = ttk.Frame(section)
+        actions.grid(row=current_row, column=0, columnspan=2, sticky="ew", pady=(8, 6))
+        ttk.Button(actions, text="Рассчитать", command=self._update_rashba_surface).pack(side="left")
+        ttk.Button(actions, text="Экспорт JSON/XML/XLSX", command=self._export_rashba_data).pack(side="left", padx=(8, 0))
         current_row += 1
 
         self._make_slider(
@@ -1173,7 +1197,7 @@ class App(tk.Tk):
         for variable in (self.a, self.R_bohr, self.alpha_deg, self.beta_deg, self.lattice_radius, self.d_layer):
             variable.trace_add("write", lambda *_: self._on_geometry_inputs_changed())
 
-        for variable in (self.Z, self.b, self.c1, self.c2, self.dr, self.rmax, self.Emin, self.Emax, self.Npts):
+        for variable in (self.Z, self.b, self.dr, self.rmax, self.Emin, self.Emax, self.Npts):
             variable.trace_add("write", lambda *_: self._on_calculation_inputs_changed())
 
         self.auto_n.trace_add("write", lambda *_: self._on_geometry_inputs_changed())
@@ -1354,6 +1378,39 @@ class App(tk.Tk):
                 "error_label": error_label,
             }
 
+    def _make_constant_value_row(
+        self,
+        parent,
+        label: str,
+        value: float,
+        row: int,
+        *,
+        description: str = "",
+    ) -> None:
+        frame = ttk.Frame(parent)
+        frame.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(2, 0))
+        frame.columnconfigure(0, weight=1)
+
+        label_widget = ttk.Label(frame, text=label)
+        label_widget.grid(row=0, column=0, sticky="w")
+        self._attach_tooltip(label_widget, description)
+
+        value_widget = ttk.Label(frame, text=f"{float(value):.6g} (константа)", foreground="#555")
+        value_widget.grid(row=0, column=1, sticky="e")
+        self._attach_tooltip(value_widget, description)
+
+        if description:
+            hint_label = ttk.Label(
+                frame,
+                text=f"({description})",
+                foreground="#555",
+                font=("TkDefaultFont", 8),
+                wraplength=CONTROL_WRAP_LENGTH,
+                justify="left",
+            )
+            hint_label.grid(row=1, column=0, columnspan=2, sticky="w")
+            self._attach_tooltip(hint_label, description)
+
     def _current_source_depth(self) -> int:
         return max(1, int(self.d_layer.get()))
 
@@ -1379,8 +1436,8 @@ class App(tk.Tk):
             a_list_ang=impact_parameters_ang,
             Z=float(self.Z.get()),
             b_ang=float(self.b.get()),
-            c1=float(self.c1.get()),
-            c2=float(self.c2.get()),
+            c1=DEFAULT_PHASE_C1,
+            c2=DEFAULT_PHASE_C2,
             dr_ang=float(self.dr.get()),
             r_max_ang=float(self.rmax.get()),
             chi=interpolate_thomas_fermi_chi if self.use_table_chi.get() else exponential_chi,
@@ -1693,8 +1750,8 @@ class App(tk.Tk):
             self.Z.get(),
             geometry.lattice_constant_ang,
             self.b.get(),
-            self.c1.get(),
-            self.c2.get(),
+            DEFAULT_PHASE_C1,
+            DEFAULT_PHASE_C2,
             self.dr.get(),
             self.rmax.get(),
             len(atom_selection.all_atoms),
@@ -2441,6 +2498,36 @@ class App(tk.Tk):
         target.insert(tk.END, text)
         target.see(tk.END)
 
+    def _ask_export_file_path(self, *, title: str, initialfile: str) -> Path | None:
+        selected_type = tk.StringVar(value=EXPORT_FILETYPES[0][0])
+        dialog_options = {
+            "parent": self,
+            "title": title,
+            "initialfile": initialfile,
+            "defaultextension": ".json",
+            "filetypes": EXPORT_FILETYPES,
+        }
+        try:
+            selected_path = filedialog.asksaveasfilename(**dialog_options, typevariable=selected_type)
+        except tk.TclError:
+            selected_path = filedialog.asksaveasfilename(**dialog_options)
+        if not selected_path:
+            return None
+
+        selected = Path(selected_path)
+        if selected.suffix.lower() in SUPPORTED_EXPORT_SUFFIXES:
+            return selected
+        return selected.with_suffix(self._extension_from_export_type(selected_type.get()))
+
+    @staticmethod
+    def _extension_from_export_type(file_type_text: str) -> str:
+        normalized = file_type_text.lower()
+        if ".xlsx" in normalized or "excel" in normalized:
+            return ".xlsx"
+        if ".xml" in normalized:
+            return ".xml"
+        return ".json"
+
     def _export_spectrum_data(self) -> None:
         payload = self._latest_plot_payload
         if payload is None:
@@ -2502,6 +2589,8 @@ class App(tk.Tk):
             "energy_min_eV": request.phase_request.Emin_eV,
             "energy_max_eV": request.phase_request.Emax_eV,
             "energy_point_count": request.phase_request.N,
+            "c1": request.phase_request.c1,
+            "c2": request.phase_request.c2,
             "used_atom_count": len(request.phase_request.a_list_ang),
             "all_atom_count": request.all_atom_count,
             "lattice_constant_ang": request.geometry.lattice_constant_ang,
@@ -2526,26 +2615,16 @@ class App(tk.Tk):
             self._set_text_output(self.trajectory_output, "[Экспорт]\nНет траекторного расчёта для экспорта.\n")
             return
 
-        selected_path = filedialog.asksaveasfilename(
-            parent=self,
+        selected_path = self._ask_export_file_path(
             title="Экспорт траекторного расчёта",
             initialfile=self._default_trajectory_export_name(payload),
-            defaultextension=".json",
-            filetypes=[
-                ("JSON", "*.json"),
-                ("Excel", "*.xlsx"),
-                ("XML", "*.xml"),
-                ("Все файлы", "*.*"),
-            ],
         )
         if not selected_path:
             return
 
-        selected = Path(selected_path)
-        base_path = selected.parent / selected.stem if selected.suffix else selected
         try:
-            exported = export_trajectory_bundle(
-                base_path=base_path,
+            exported = export_trajectory_file(
+                path=selected_path,
                 frame=payload.frame,
                 metadata=trajectory_export_metadata(payload),
             )
@@ -2557,15 +2636,52 @@ class App(tk.Tk):
                 self.trajectory_output.see(tk.END)
             return
 
-        exported_summary = ", ".join(f"{kind.upper()}={path.name}" for kind, path in exported.items())
-        self.status_text.set(f"Экспорт траекторного расчёта выполнен: {base_path.stem}")
+        self.status_text.set(f"Экспорт траекторного расчёта выполнен: {exported.name}")
         if self.trajectory_output is not None:
-            self.trajectory_output.insert(tk.END, f"\n[Экспорт] {exported_summary}\n")
+            self.trajectory_output.insert(tk.END, f"\n[Экспорт] {exported.name}\n")
             self.trajectory_output.see(tk.END)
 
     def _default_trajectory_export_name(self, payload: TrajectorySweepResult) -> str:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         return f"trajectory-{payload.request.sweep_mode}-{timestamp}"
+
+    def _export_rashba_data(self) -> None:
+        payload = self._latest_rashba_payload
+        if payload is None:
+            self.status_text.set("Нет расчёта Рашбы для экспорта. Сначала нажмите Рассчитать.")
+            self._set_text_output(self.rashba_output, "[Экспорт]\nНет расчёта Рашбы для экспорта.\n")
+            return
+
+        selected_path = self._ask_export_file_path(
+            title="Экспорт расчёта Рашбы",
+            initialfile=self._default_rashba_export_name(payload),
+        )
+        if not selected_path:
+            return
+
+        try:
+            exported = export_rashba_surface_file(
+                path=selected_path,
+                result=payload,
+                source_label=self.rashba_source_label.get(),
+            )
+        except Exception as ex:
+            logger.exception("EXPORT | ошибка экспорта расчёта Рашбы")
+            self.status_text.set(f"Ошибка экспорта расчёта Рашбы: {ex}")
+            if self.rashba_output is not None:
+                self.rashba_output.insert(tk.END, f"\n[Экспорт] Ошибка: {ex}\n")
+                self.rashba_output.see(tk.END)
+            return
+
+        self.status_text.set(f"Экспорт расчёта Рашбы выполнен: {exported.name}")
+        if self.rashba_output is not None:
+            self.rashba_output.insert(tk.END, f"\n[Экспорт] {exported.name}\n")
+            self.rashba_output.see(tk.END)
+
+    def _default_rashba_export_name(self, payload: RashbaSurfaceResult) -> str:
+        del payload
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        return f"rashba-surface-{timestamp}"
 
     def _refresh_geometry_preview(self, geometry: GeometryContext, atom_selection, search_region: LatticeSearchRegion) -> None:
         if (

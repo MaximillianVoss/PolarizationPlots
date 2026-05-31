@@ -20,6 +20,8 @@ ELECTRON_MASS = 9.1093837015e-31
 BOHR_TO_ANGSTROM = 0.52917721092
 LIGHT_SPEED = 299792458.0
 INVERSE_FINE_STRUCTURE = 137.04
+DEFAULT_PHASE_C1 = 0.982
+DEFAULT_PHASE_C2 = 0.406
 
 _THOMAS_FERMI_X = np.array([
     0.00, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20,
@@ -590,6 +592,8 @@ compute_grid = compute_single_atom_phase_grid
 
 __all__ = [
     "ChiFunction",
+    "DEFAULT_PHASE_C1",
+    "DEFAULT_PHASE_C2",
     "energy_to_speed_mps",
     "speed_to_energy_eV",
     "interpolate_thomas_fermi_chi",

@@ -4,6 +4,7 @@ import tkinter as tk
 from polarization_app.application.formulas import FORMULA_LABELS, FORMULA_NEW
 from polarization_app.application.trajectory import TRAJECTORY_SWEEP_ANGLE_STEP, TRAJECTORY_SWEEP_ENERGY, TRAJECTORY_SWEEP_LABELS
 from polarization_app.gui.app import App
+from polarization_app.physics.phase_integrals import DEFAULT_PHASE_C1, DEFAULT_PHASE_C2
 from polarization_app.physics.trajectory_phase import DEFAULT_THOMAS_FERMI_B_BOHR
 
 
@@ -83,8 +84,6 @@ class AppBindingsTestCase(unittest.TestCase):
         actions = [
             ("Z", lambda: self.app.Z.set(self.app.Z.get() + 1.0)),
             ("b", lambda: self.app.b.set(self.app.b.get() + 0.05)),
-            ("c1", lambda: self.app.c1.set(self.app.c1.get() + 0.1)),
-            ("c2", lambda: self.app.c2.set(self.app.c2.get() + 0.1)),
             ("dr", lambda: self.app.dr.set(self.app.dr.get() + 0.001)),
             ("rmax", lambda: self.app.rmax.set(self.app.rmax.get() + 1.0)),
             ("Emin", lambda: self.app.Emin.set(self.app.Emin.get() + 1.0)),
@@ -182,6 +181,15 @@ class AppBindingsTestCase(unittest.TestCase):
         self.assertNotIn("b Thomas-Fermi (a0)", labels)
         self.assertFalse(hasattr(request, "b_bohr"))
         self.assertAlmostEqual(DEFAULT_THOMAS_FERMI_B_BOHR, 0.5 * ((3.0 * 3.141592653589793 / 4.0) ** (2.0 / 3.0)))
+
+    def test_phase_c1_c2_are_constants_not_user_controls(self):
+        labels = [getattr(widget, "_slider_label", "") for widget in self.app._slider_value_entries]
+        request = self.app._phase_grid_request([1.0])
+
+        self.assertNotIn("c1", labels)
+        self.assertNotIn("c2", labels)
+        self.assertAlmostEqual(request.c1, DEFAULT_PHASE_C1)
+        self.assertAlmostEqual(request.c2, DEFAULT_PHASE_C2)
 
     def test_slider_value_entry_updates_synced_variable(self):
         entry = next(
