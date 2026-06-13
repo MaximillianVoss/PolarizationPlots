@@ -66,6 +66,13 @@ def energy_eV_to_speed_mps_for_mass(energy_eV: float | np.ndarray, mass_amu: flo
     return np.sqrt(2.0 * energy_joule / mass_kg)
 
 
+def mass_amu_to_electron_masses(mass_amu: float) -> float:
+    mass_electron_units = float(mass_amu) / ELECTRON_MASS_AMU
+    if not np.isfinite(mass_electron_units) or mass_electron_units <= 0.0:
+        raise ValueError("Масса в а.е.м должна быть положительной.")
+    return mass_electron_units
+
+
 def speed_mps_to_atomic_units(speed_mps: float | np.ndarray) -> np.ndarray:
     speed_au = np.asarray(speed_mps, dtype=float) / ATOMIC_SPEED_MPS
     if np.any(~np.isfinite(speed_au)) or np.any(speed_au <= 0.0):
@@ -130,6 +137,7 @@ def compute_atom_trajectory_phase(
 
     speed_mps = float(energy_eV_to_speed_mps_for_mass(float(energy_eV), mass_amu))
     speed_au = float(speed_mps_to_atomic_units(speed_mps))
+    mass_electron_units = mass_amu_to_electron_masses(float(mass_amu))
     impact_bohr = float(impact_parameter_ang) / BOHR_TO_ANGSTROM
     r0_bohr = float(r0_ang) / BOHR_TO_ANGSTROM
     r_min_bohr = find_minimum_approach_bohr(
@@ -137,6 +145,7 @@ def compute_atom_trajectory_phase(
         impact_parameter_bohr=impact_bohr,
         r0_bohr=r0_bohr,
         speed_au=speed_au,
+        mass_electron_units=mass_electron_units,
         chi=chi,
     )
     u0_au = _potential_scalar(r0_bohr, atomic_number, chi=chi)
@@ -157,6 +166,7 @@ def compute_atom_trajectory_phase(
             impact_bohr=impact_bohr,
             r0_bohr=r0_bohr,
             u0_au=u0_au,
+            mass_electron_units=mass_electron_units,
             r_min_bohr=r_min_bohr,
             dt_initial_au=dt_initial_au,
             dt_au=dt_au,
@@ -190,6 +200,7 @@ def find_minimum_approach_bohr(
     impact_parameter_bohr: float,
     r0_bohr: float,
     speed_au: float,
+    mass_electron_units: float = 1.0,
     chi: ChiFunction = spline_thomas_fermi_chi,
 ) -> float:
     if impact_parameter_bohr <= 0.0 or r0_bohr <= impact_parameter_bohr:
@@ -204,6 +215,7 @@ def find_minimum_approach_bohr(
             impact_parameter_bohr=impact_parameter_bohr,
             r0_bohr=r0_bohr,
             u0_au=u0_au,
+            mass_electron_units=mass_electron_units,
             speed_au=speed_au,
             chi=chi,
         )
@@ -214,17 +226,17 @@ def find_minimum_approach_bohr(
         raise ValueError("В r0 радиальная скорость не положительна. Проверьте r0 и r_п.")
 
     lower = max(min(impact_parameter_bohr, r0_bohr) * 1e-8, 1e-10)
-    radii = np.geomspace(lower, upper, 256)
-    previous_r = float(radii[0])
-    previous_value = equation(previous_r)
-    for current_r in radii[1:]:
+    radii = np.geomspace(lower, upper, 512)
+    previous_r = upper
+    previous_value = upper_value
+    for current_r in reversed(radii[:-1]):
         current_r = float(current_r)
         current_value = equation(current_r)
         if not np.isfinite(previous_value):
             previous_r, previous_value = current_r, current_value
             continue
         if np.isfinite(current_value) and previous_value * current_value <= 0.0:
-            return _solve_bracketed_root(equation, previous_r, current_r)
+            return _solve_bracketed_root(equation, current_r, previous_r)
         previous_r, previous_value = current_r, current_value
 
     raise RuntimeError("Не удалось найти r_min: нет смены знака у уравнения сближения.")
@@ -272,6 +284,7 @@ def _integrate_half_trajectory(
     impact_bohr: float,
     r0_bohr: float,
     u0_au: float,
+    mass_electron_units: float,
     r_min_bohr: float,
     dt_initial_au: float,
     dt_au: float,
@@ -297,6 +310,7 @@ def _integrate_half_trajectory(
             impact_parameter_bohr=impact_bohr,
             r0_bohr=r0_bohr,
             u0_au=u0_au,
+            mass_electron_units=mass_electron_units,
             speed_au=speed_au,
             chi=chi,
         )
@@ -309,6 +323,7 @@ def _integrate_half_trajectory(
             spin_orbit_c1=spin_orbit_c1,
             orbital_l=orbital_l,
         )
+        dt_used_au = float(dt_au) * (r_bohr * r_bohr) / (r_min_bohr * r_min_bohr)
         dr_bohr = radial_speed * dt_used_au
         if r_bohr - dr_bohr <= r_min_bohr:
             dr_final = max(r_bohr - r_min_bohr, 0.0)
@@ -363,6 +378,7 @@ def _radial_speed(
     impact_parameter_bohr: float,
     r0_bohr: float,
     u0_au: float,
+    mass_electron_units: float,
     speed_au: float,
     chi: ChiFunction,
 ) -> float:
@@ -372,6 +388,7 @@ def _radial_speed(
         impact_parameter_bohr=impact_parameter_bohr,
         r0_bohr=r0_bohr,
         u0_au=u0_au,
+        mass_electron_units=mass_electron_units,
         speed_au=speed_au,
         chi=chi,
     )
@@ -389,12 +406,13 @@ def _radial_speed_squared(
     impact_parameter_bohr: float,
     r0_bohr: float,
     u0_au: float,
+    mass_electron_units: float,
     speed_au: float,
     chi: ChiFunction,
 ) -> float:
     ur = _potential_scalar(r_bohr, atomic_number, chi=chi)
     centrifugal = (impact_parameter_bohr * impact_parameter_bohr * speed_au * speed_au) / (r_bohr * r_bohr)
-    return float(speed_au * speed_au + 2.0 * (u0_au - ur) - centrifugal)
+    return float(speed_au * speed_au + 2.0 * (u0_au - ur) / float(mass_electron_units) - centrifugal)
 
 
 def _potential_scalar(
@@ -494,6 +512,7 @@ __all__ = [
     "DEFAULT_SPIN_ORBIT_C1",
     "AtomTrajectoryResult",
     "energy_eV_to_speed_mps_for_mass",
+    "mass_amu_to_electron_masses",
     "speed_mps_to_atomic_units",
     "thomas_fermi_potential_au",
     "thomas_fermi_potential_derivative_au",

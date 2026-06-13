@@ -18,6 +18,7 @@ from polarization_app.physics.trajectory_phase import (
     _trajectory_phase_rate_scalar,
     compute_atom_trajectory_phase,
     energy_eV_to_speed_mps_for_mass,
+    mass_amu_to_electron_masses,
 )
 
 
@@ -42,6 +43,57 @@ class TrajectoryPhaseTestCase(unittest.TestCase):
         heavier_speed = float(energy_eV_to_speed_mps_for_mass(100.0, ELECTRON_MASS_AMU * 4.0))
 
         self.assertAlmostEqual(electron_speed / 2.0, heavier_speed, delta=electron_speed * 1e-12)
+
+    def test_one_amu_mass_is_scaled_in_electron_masses(self):
+        self.assertAlmostEqual(mass_amu_to_electron_masses(1.0), 1.0 / ELECTRON_MASS_AMU)
+
+    def test_atom_trajectory_accepts_one_amu_mass_without_max_steps(self):
+        result = compute_atom_trajectory_phase(
+            energy_eV=100.0,
+            mass_amu=1.0,
+            atomic_number=29.0,
+            impact_parameter_ang=0.8,
+            r0_ang=10.0,
+            angle_step_rad=np.deg2rad(3.0),
+            orbital_l=1,
+            min_steps=30,
+        )
+
+        self.assertTrue(result.converged)
+        self.assertEqual(result.status, "ok")
+        self.assertLess(result.steps, 1000)
+        self.assertTrue(np.isfinite(result.phase_rad))
+
+    def test_small_impact_uses_adaptive_dt_without_huge_step_count(self):
+        result = compute_atom_trajectory_phase(
+            energy_eV=100.0,
+            mass_amu=ELECTRON_MASS_AMU,
+            atomic_number=60.5,
+            impact_parameter_ang=0.3,
+            r0_ang=3.5,
+            angle_step_rad=np.deg2rad(3.0),
+            orbital_l=5,
+            min_steps=30,
+        )
+
+        self.assertTrue(result.converged)
+        self.assertLess(result.steps, 1000)
+
+    def test_minimum_approach_uses_outer_turning_point(self):
+        result = compute_atom_trajectory_phase(
+            energy_eV=100.0,
+            mass_amu=ELECTRON_MASS_AMU,
+            atomic_number=60.5,
+            impact_parameter_ang=0.7,
+            r0_ang=3.5,
+            angle_step_rad=np.deg2rad(3.0),
+            orbital_l=5,
+            min_steps=30,
+        )
+
+        self.assertTrue(result.converged)
+        self.assertGreater(result.r_min_ang, 0.14)
+        self.assertLess(result.steps, 1000)
 
     def test_atom_trajectory_returns_expected_diagnostics(self):
         result = compute_atom_trajectory_phase(
