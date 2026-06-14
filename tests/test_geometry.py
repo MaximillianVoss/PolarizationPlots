@@ -90,7 +90,7 @@ class GeometryContextTestCase(unittest.TestCase):
         self.assertTrue(details.capped_by_max_atoms)
         self.assertGreater(details.required_radius, details.radius)
 
-    def test_search_region_shifts_along_z_with_source_layer(self):
+    def test_search_region_tracks_deeper_path_to_surface(self):
         shallow = estimate_lattice_search_region(
             lattice_constant_ang=4.75,
             bohr_radius_ang=0.53,
@@ -105,11 +105,37 @@ class GeometryContextTestCase(unittest.TestCase):
             beta_rad=math.radians(20.0),
             source_layer=4,
         ).region
-        self.assertEqual(shallow.x_radius, deeper.x_radius)
-        self.assertEqual(shallow.y_radius, deeper.y_radius)
+        self.assertGreaterEqual(deeper.x_radius, shallow.x_radius)
+        self.assertGreaterEqual(deeper.y_radius, shallow.y_radius)
+        self.assertGreater(max(deeper.x_radius, deeper.y_radius), max(shallow.x_radius, shallow.y_radius))
         self.assertEqual(shallow.z_min_layer, 0)
         self.assertEqual(deeper.z_min_layer, 0)
         self.assertGreater(deeper.z_max_layer, shallow.z_max_layer)
+
+    def test_search_region_covers_deep_tilted_geometry(self):
+        estimate = estimate_lattice_search_region(
+            lattice_constant_ang=4.75,
+            bohr_radius_ang=0.53,
+            alpha_rad=math.radians(70.0),
+            beta_rad=math.radians(60.0),
+            source_layer=6,
+        )
+        region = estimate.region
+        self.assertFalse(estimate.capped_by_max_atoms)
+        self.assertGreaterEqual(region.x_radius, 9)
+        self.assertGreaterEqual(region.y_radius, 16)
+
+        geometry = GeometryContext(
+            lattice_constant_ang=4.75,
+            bohr_radius_ang=0.53,
+            alpha_deg=70.0,
+            beta_deg=60.0,
+            lattice_radius=max(region.x_radius, region.y_radius),
+            source_layer=6,
+            orbital_l=1,
+        )
+        selection = collect_atom_selection(geometry, search_region=region)
+        self.assertGreater(len(selection.all_atoms), 1)
 
 
 if __name__ == "__main__":

@@ -30,6 +30,9 @@ ELECTRON_MASS_AMU = ELECTRON_MASS / ATOMIC_MASS_UNIT_KG
 ATOMIC_SPEED_MPS = LIGHT_SPEED / INVERSE_FINE_STRUCTURE
 DEFAULT_THOMAS_FERMI_B_BOHR = 0.5 * ((3.0 * np.pi / 4.0) ** (2.0 / 3.0))
 DEFAULT_SPIN_ORBIT_C1 = 1.0 / (4.0 * INVERSE_FINE_STRUCTURE * INVERSE_FINE_STRUCTURE)
+RADIAL_ROOT_REFINE_THRESHOLD = 2e-3
+RADIAL_ROOT_REFINE_SAMPLES = 96
+RADIAL_TURNING_SPEED_RELATIVE_THRESHOLD = 1e-3
 
 
 @dataclass(frozen=True)
@@ -149,6 +152,17 @@ def compute_atom_trajectory_phase(
         chi=chi,
     )
     u0_au = _potential_scalar(r0_bohr, atomic_number, chi=chi)
+    initial_radial_speed_squared = _radial_speed_squared(
+        r0_bohr,
+        atomic_number=atomic_number,
+        impact_parameter_bohr=impact_bohr,
+        r0_bohr=r0_bohr,
+        u0_au=u0_au,
+        mass_electron_units=mass_electron_units,
+        speed_au=speed_au,
+        chi=chi,
+    )
+    turning_value_threshold = initial_radial_speed_squared * (RADIAL_TURNING_SPEED_RELATIVE_THRESHOLD ** 2)
     dt_initial_au = float(angle_step_rad) * (r_min_bohr * r_min_bohr) / (impact_bohr * speed_au)
 
     last_result: AtomTrajectoryResult | None = None
@@ -170,6 +184,7 @@ def compute_atom_trajectory_phase(
             r_min_bohr=r_min_bohr,
             dt_initial_au=dt_initial_au,
             dt_au=dt_au,
+            turning_value_threshold=turning_value_threshold,
             refinements=refinements,
             min_steps=int(min_steps),
             max_steps=int(max_steps),
@@ -225,21 +240,75 @@ def find_minimum_approach_bohr(
     if not np.isfinite(upper_value) or upper_value <= 0.0:
         raise ValueError("В r0 радиальная скорость не положительна. Проверьте r0 и r_п.")
 
+    turning_value_threshold = upper_value * (RADIAL_TURNING_SPEED_RELATIVE_THRESHOLD ** 2)
     lower = max(min(impact_parameter_bohr, r0_bohr) * 1e-8, 1e-10)
-    radii = np.geomspace(lower, upper, 512)
+    radii = np.geomspace(lower, upper, 768)
     previous_r = upper
     previous_value = upper_value
+    best_near_turning_r = upper
+    best_near_turning_value = upper_value
     for current_r in reversed(radii[:-1]):
         current_r = float(current_r)
         current_value = equation(current_r)
+        if np.isfinite(current_value) and current_value >= 0.0 and current_value < best_near_turning_value:
+            best_near_turning_r = current_r
+            best_near_turning_value = current_value
         if not np.isfinite(previous_value):
             previous_r, previous_value = current_r, current_value
             continue
-        if np.isfinite(current_value) and previous_value * current_value <= 0.0:
-            return _solve_bracketed_root(equation, current_r, previous_r)
+        root = _find_outermost_root_in_interval(
+            equation,
+            inner_r=current_r,
+            outer_r=previous_r,
+            inner_value=current_value,
+            outer_value=previous_value,
+            turning_value_threshold=turning_value_threshold,
+        )
+        if root is not None:
+            return root
         previous_r, previous_value = current_r, current_value
 
+    if best_near_turning_value <= turning_value_threshold:
+        return float(best_near_turning_r)
     raise RuntimeError("Не удалось найти r_min: нет смены знака у уравнения сближения.")
+
+
+def _find_outermost_root_in_interval(
+    function: Callable[[float], float],
+    *,
+    inner_r: float,
+    outer_r: float,
+    inner_value: float,
+    outer_value: float,
+    turning_value_threshold: float,
+) -> float | None:
+    if not (np.isfinite(inner_value) and np.isfinite(outer_value)):
+        return None
+    if inner_value * outer_value <= 0.0:
+        return _solve_bracketed_root(function, inner_r, outer_r)
+    if min(abs(inner_value), abs(outer_value)) > RADIAL_ROOT_REFINE_THRESHOLD:
+        return None
+
+    sample_radii = np.linspace(float(outer_r), float(inner_r), RADIAL_ROOT_REFINE_SAMPLES)
+    previous_r = float(sample_radii[0])
+    previous_value = float(outer_value)
+    best_r = previous_r
+    best_value = previous_value if previous_value >= 0.0 else float("inf")
+    for current_r in sample_radii[1:]:
+        current_r = float(current_r)
+        current_value = float(function(current_r))
+        if np.isfinite(current_value) and current_value >= 0.0 and current_value < best_value:
+            best_r = current_r
+            best_value = current_value
+        if not (np.isfinite(previous_value) and np.isfinite(current_value)):
+            previous_r, previous_value = current_r, current_value
+            continue
+        if previous_value * current_value <= 0.0:
+            return _solve_bracketed_root(function, current_r, previous_r)
+        previous_r, previous_value = current_r, current_value
+    if best_value <= turning_value_threshold:
+        return float(best_r)
+    return None
 
 
 def _solve_bracketed_root(function: Callable[[float], float], lower: float, upper: float) -> float:
@@ -288,6 +357,7 @@ def _integrate_half_trajectory(
     r_min_bohr: float,
     dt_initial_au: float,
     dt_au: float,
+    turning_value_threshold: float,
     refinements: int,
     min_steps: int,
     max_steps: int,
@@ -302,9 +372,10 @@ def _integrate_half_trajectory(
     phase_half = 0.0
     steps = 0
     dt_used_au = float(dt_au)
+    effective_r_min_bohr = float(r_min_bohr)
 
     for _ in range(max_steps):
-        radial_speed = _radial_speed(
+        radial_speed_squared = _radial_speed_squared(
             r_bohr,
             atomic_number=atomic_number_for_potential,
             impact_parameter_bohr=impact_bohr,
@@ -314,6 +385,15 @@ def _integrate_half_trajectory(
             speed_au=speed_au,
             chi=chi,
         )
+        if radial_speed_squared < 0.0 and abs(radial_speed_squared) <= max(1e-12, turning_value_threshold):
+            radial_speed_squared = 0.0
+        if not np.isfinite(radial_speed_squared) or radial_speed_squared < 0.0:
+            raise RuntimeError("Подкоренное выражение для dr стало отрицательным.")
+        if radial_speed_squared <= turning_value_threshold:
+            effective_r_min_bohr = float(r_bohr)
+            steps += 1
+            break
+        radial_speed = float(np.sqrt(radial_speed_squared))
         angular_rate = impact_bohr * speed_au / (r_bohr * r_bohr)
         phase_rate = _trajectory_phase_rate_scalar(
             r_bohr,
@@ -326,6 +406,7 @@ def _integrate_half_trajectory(
         dt_used_au = float(dt_au) * (r_bohr * r_bohr) / (r_min_bohr * r_min_bohr)
         dr_bohr = radial_speed * dt_used_au
         if r_bohr - dr_bohr <= r_min_bohr:
+            effective_r_min_bohr = float(r_min_bohr)
             dr_final = max(r_bohr - r_min_bohr, 0.0)
             dt_final_au = dr_final / radial_speed if radial_speed > 0.0 else 0.0
             theta_half += angular_rate * dt_final_au
@@ -358,7 +439,7 @@ def _integrate_half_trajectory(
         angle_step_rad=angle_step_rad,
         speed_mps=speed_mps,
         speed_au=speed_au,
-        r_min_ang=r_min_bohr * BOHR_TO_ANGSTROM,
+        r_min_ang=effective_r_min_bohr * BOHR_TO_ANGSTROM,
         theta_rad=theta_rad,
         trajectory_angle_rad=trajectory_angle_rad,
         phase_rad=phase_rad,

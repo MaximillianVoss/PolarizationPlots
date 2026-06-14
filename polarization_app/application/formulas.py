@@ -49,6 +49,7 @@ class PhaseGridRequest:
     i3_mode: Literal["trapz", "sum_avg"] = "sum_avg"
     dump_atom_phi_csv: bool = False
     max_atoms_dump: int = 200
+    parallel_workers: int | None = None
 
 
 @dataclass(frozen=True)
@@ -117,6 +118,7 @@ def execute_formula_variant(
             i3_mode=phase_request.i3_mode,
             dump_atom_phi_csv=phase_request.dump_atom_phi_csv,
             max_atoms_dump=phase_request.max_atoms_dump,
+            parallel_workers=phase_request.parallel_workers,
         )
         spin_curves = compute_spin_observables(
             grid["E_eV"].to_numpy(dtype=float),
@@ -150,6 +152,7 @@ def execute_formula_variant(
             i3_mode=phase_request.i3_mode,
             dump_atom_phi_csv=phase_request.dump_atom_phi_csv,
             max_atoms_dump=phase_request.max_atoms_dump,
+            parallel_workers=phase_request.parallel_workers,
         )
         _transition_chain, lz_chain = sample_random_lz_chain(
             matrices=matrices,

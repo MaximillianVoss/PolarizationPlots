@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from polarization_app.physics.spin_transport import compute_atom_probabilities
+from polarization_app.physics.compute_backend import cpu_worker_count
 from polarization_app.physics.trajectory_phase import (
     ELECTRON_MASS_AMU,
     DEFAULT_THOMAS_FERMI_B_BOHR,
@@ -56,7 +57,7 @@ class TrajectorySweepRequest:
     random_m: bool = False
     min_steps: int = 30
     max_refinements: int = 6
-    parallel_workers: int = 1
+    parallel_workers: int = cpu_worker_count()
 
 
 @dataclass(frozen=True)

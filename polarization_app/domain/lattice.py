@@ -226,7 +226,8 @@ def estimate_lattice_search_region(
         vz = 1e-8
 
     origin = np.array([0.0, 0.0, source_layer * lattice_constant_ang], dtype=float)
-    travel_distance = interaction_radius / abs(vz)
+    path_depth_to_cover = max(origin[2], 0.0) + interaction_radius
+    travel_distance = path_depth_to_cover / abs(vz)
     endpoint = origin + direction * travel_distance
 
     x_min = min(origin[0], endpoint[0]) - interaction_radius

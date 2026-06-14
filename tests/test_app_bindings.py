@@ -3,6 +3,7 @@ import tkinter as tk
 
 from polarization_app.application.formulas import FORMULA_LABELS, FORMULA_NEW
 from polarization_app.application.trajectory import TRAJECTORY_SWEEP_ANGLE_STEP, TRAJECTORY_SWEEP_ENERGY, TRAJECTORY_SWEEP_LABELS
+from polarization_app.physics.compute_backend import cpu_worker_count
 from polarization_app.gui.app import App
 from polarization_app.physics.phase_integrals import DEFAULT_PHASE_C1, DEFAULT_PHASE_C2
 from polarization_app.physics.trajectory_phase import DEFAULT_THOMAS_FERMI_B_BOHR
@@ -190,6 +191,11 @@ class AppBindingsTestCase(unittest.TestCase):
         self.assertNotIn("c2", labels)
         self.assertAlmostEqual(request.c1, DEFAULT_PHASE_C1)
         self.assertAlmostEqual(request.c2, DEFAULT_PHASE_C2)
+
+    def test_cpu_parallel_defaults_use_available_cores(self):
+        self.assertEqual(self.app.trajectory_parallel_workers.get(), cpu_worker_count())
+        self.assertEqual(self.app._current_trajectory_request().parallel_workers, cpu_worker_count())
+        self.assertEqual(self.app._phase_grid_request([1.0]).parallel_workers, cpu_worker_count())
 
     def test_slider_value_entry_updates_synced_variable(self):
         entry = next(

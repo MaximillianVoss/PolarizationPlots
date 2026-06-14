@@ -42,6 +42,33 @@ class PolarizationPart2TestCase(unittest.TestCase):
         np.testing.assert_allclose(phi_atoms.sum(axis=1), grid_with_matrix["Phi"].to_numpy(dtype=float))
         np.testing.assert_allclose(a_arr, np.array([0.5, 1.0]))
 
+    def test_parallel_phase_grid_matches_sequential(self):
+        grid_kwargs = {
+            "Emin_eV": 10.0,
+            "Emax_eV": 20.0,
+            "N": 3,
+            "a_list_ang": [1.0, 0.5, 0.8, 1.2],
+            "Z": 29.0,
+            "b_ang": 0.53,
+            "c1": 1.0,
+            "c2": 1.0,
+            "dr_ang": 0.05,
+            "r_max_ang": 5.0,
+            "chi": exponential_chi,
+            "i3_mode": "sum_avg",
+            "dump_atom_phi_csv": False,
+            "max_atoms_dump": 10,
+        }
+
+        sequential, sequential_phi, _ = compute_phase_grid_for_atoms_with_matrix(**grid_kwargs, parallel_workers=1)
+        parallel, parallel_phi, _ = compute_phase_grid_for_atoms_with_matrix(**grid_kwargs, parallel_workers=4)
+
+        np.testing.assert_allclose(
+            sequential[["I1", "I2", "I3", "Phi"]].to_numpy(dtype=float),
+            parallel[["I1", "I2", "I3", "Phi"]].to_numpy(dtype=float),
+        )
+        np.testing.assert_allclose(sequential_phi, parallel_phi)
+
     def test_atom_probabilities_match_corrected_formula(self):
         phase_values = np.array([np.pi / 3.0])
         p1, p2 = compute_atom_probabilities(phase_values, orbital_l=1, magnetic_lz=0)
@@ -75,6 +102,25 @@ class PolarizationPart2TestCase(unittest.TestCase):
         np.testing.assert_allclose(result["sum_check_dn"], np.ones(2))
         self.assertTrue(np.all(np.abs(result["spin_mean_up"]) <= 1.0 + 1e-12))
         self.assertTrue(np.all(np.abs(result["spin_mean_dn"]) <= 1.0 + 1e-12))
+
+    def test_spin_observables_cuda_request_falls_back_safely(self):
+        base = compute_spin_observables_for_chain(
+            energies_eV=np.array([1.0, 2.0]),
+            phase_matrix_by_atom=np.array([[0.1, 0.2], [0.3, 0.4]]),
+            magnetic_lz_chain=[0, 1],
+            orbital_l=2,
+            use_cuda=False,
+        )
+        requested_cuda = compute_spin_observables_for_chain(
+            energies_eV=np.array([1.0, 2.0]),
+            phase_matrix_by_atom=np.array([[0.1, 0.2], [0.3, 0.4]]),
+            magnetic_lz_chain=[0, 1],
+            orbital_l=2,
+            use_cuda=True,
+        )
+
+        for key in base:
+            np.testing.assert_allclose(base[key], requested_cuda[key])
 
 
 class FormulaVariantsTestCase(unittest.TestCase):

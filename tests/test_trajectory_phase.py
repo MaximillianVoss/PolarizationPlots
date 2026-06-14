@@ -95,6 +95,42 @@ class TrajectoryPhaseTestCase(unittest.TestCase):
         self.assertGreater(result.r_min_ang, 0.14)
         self.assertLess(result.steps, 1000)
 
+    def test_near_critical_outer_turning_point_is_not_missed(self):
+        result = compute_atom_trajectory_phase(
+            energy_eV=152.329210,
+            mass_amu=1.0,
+            atomic_number=80.0,
+            impact_parameter_ang=0.621,
+            r0_ang=2.17,
+            angle_step_rad=np.deg2rad(3.0),
+            orbital_l=6,
+            min_steps=30,
+            max_refinements=6,
+        )
+
+        self.assertTrue(result.converged)
+        self.assertEqual(result.status, "ok")
+        self.assertGreater(result.r_min_ang, 0.13)
+        self.assertLess(result.steps, 200)
+
+    def test_low_energy_large_impact_finishes_near_turning_point(self):
+        result = compute_atom_trajectory_phase(
+            energy_eV=10.0,
+            mass_amu=1.0,
+            atomic_number=80.0,
+            impact_parameter_ang=2.15,
+            r0_ang=2.17,
+            angle_step_rad=np.deg2rad(3.0),
+            orbital_l=6,
+            min_steps=30,
+            max_refinements=6,
+        )
+
+        self.assertTrue(result.converged)
+        self.assertEqual(result.status, "ok")
+        self.assertGreater(result.r_min_ang, 2.0)
+        self.assertLess(result.r_min_ang, result.r0_ang)
+
     def test_atom_trajectory_returns_expected_diagnostics(self):
         result = compute_atom_trajectory_phase(
             energy_eV=100.0,

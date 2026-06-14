@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Callable, Literal
 
 import numpy as np
 import pandas as pd
+
+from polarization_app.physics.compute_backend import cpu_worker_count
 
 try:
     from scipy.interpolate import CubicSpline
@@ -22,6 +25,7 @@ LIGHT_SPEED = 299792458.0
 INVERSE_FINE_STRUCTURE = 137.04
 DEFAULT_PHASE_C1 = 0.982
 DEFAULT_PHASE_C2 = 0.406
+PHASE_PARALLEL_MIN_WORK_ITEMS = 1_000_000
 
 _THOMAS_FERMI_X = np.array([
     0.00, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20,
@@ -243,6 +247,7 @@ def compute_phase_grid_for_atoms(
     i3_mode: Literal["trapz", "sum_avg"] = "sum_avg",
     dump_atom_phi_csv: bool = True,
     max_atoms_dump: int = 200,
+    parallel_workers: int | None = None,
 ) -> pd.DataFrame:
     _validate_atom_phase_inputs(Emin_eV, Emax_eV, a_list_ang)
     grid, atom_phase_matrix, impact_parameters = _build_atom_phase_grid(
@@ -261,6 +266,7 @@ def compute_phase_grid_for_atoms(
         i3_mode=i3_mode,
         max_atoms_dump=max_atoms_dump,
         include_atom_phase_matrix=dump_atom_phi_csv,
+        parallel_workers=parallel_workers,
     )
     if dump_atom_phi_csv and atom_phase_matrix is not None:
         _dump_per_atom_phase_csv(
@@ -288,6 +294,7 @@ def compute_phase_grid_for_atoms_with_matrix(
     i3_mode: str = "sum_avg",
     dump_atom_phi_csv: bool = True,
     max_atoms_dump: int = 200,
+    parallel_workers: int | None = None,
 ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     _validate_atom_phase_inputs(Emin_eV, Emax_eV, a_list_ang)
     grid, atom_phase_matrix, impact_parameters = _build_atom_phase_grid(
@@ -306,6 +313,7 @@ def compute_phase_grid_for_atoms_with_matrix(
         i3_mode=i3_mode,
         max_atoms_dump=max_atoms_dump,
         include_atom_phase_matrix=True,
+        parallel_workers=parallel_workers,
     )
     if dump_atom_phi_csv and atom_phase_matrix is not None:
         _dump_per_atom_phase_csv(
@@ -415,6 +423,7 @@ def _build_atom_phase_grid(
     i3_mode: str,
     max_atoms_dump: int,
     include_atom_phase_matrix: bool,
+    parallel_workers: int | None,
 ) -> tuple[pd.DataFrame, np.ndarray | None, np.ndarray]:
     energy_grid = np.logspace(np.log10(Emin_eV), np.log10(Emax_eV), int(N))
     speed_grid = energy_to_speed_mps(energy_grid)
@@ -422,23 +431,18 @@ def _build_atom_phase_grid(
 
     impact_parameters = np.asarray(a_list_ang, dtype=float)
     impact_parameters = np.sort(impact_parameters)[:int(max_atoms_dump)]
-    coefficient_matrix = np.asarray(
-        [
-            _compute_phase_geometry_coefficients(
-                a_ang=float(impact_parameter),
-                Z=Z,
-                b_ang=b_ang,
-                c1=c1,
-                c2=c2,
-                dr_ang=dr_ang,
-                r_max_ang=r_max_ang,
-                chi=chi,
-                chi_params=chi_params,
-                i3_mode=i3_mode,
-            )
-            for impact_parameter in impact_parameters
-        ],
-        dtype=float,
+    coefficient_matrix = _compute_atom_coefficient_matrix(
+        impact_parameters=impact_parameters,
+        Z=Z,
+        b_ang=b_ang,
+        c1=c1,
+        c2=c2,
+        dr_ang=dr_ang,
+        r_max_ang=r_max_ang,
+        chi=chi,
+        chi_params=chi_params,
+        i3_mode=i3_mode,
+        parallel_workers=parallel_workers,
     )
     summed_coefficients = coefficient_matrix.sum(axis=0)
     inv_speed_au = 1.0 / speed_au
@@ -482,6 +486,46 @@ def _build_atom_phase_grid(
         atom_phase_matrix,
         impact_parameters,
     )
+
+
+def _compute_atom_coefficient_matrix(
+    *,
+    impact_parameters: np.ndarray,
+    Z: float,
+    b_ang: float,
+    c1: float,
+    c2: float,
+    dr_ang: float,
+    r_max_ang: float,
+    chi: ChiFunction,
+    chi_params: dict[str, float] | None,
+    i3_mode: str,
+    parallel_workers: int | None,
+) -> np.ndarray:
+    def compute_one(impact_parameter: float) -> tuple[float, float, float, float]:
+        return _compute_phase_geometry_coefficients(
+            a_ang=float(impact_parameter),
+            Z=Z,
+            b_ang=b_ang,
+            c1=c1,
+            c2=c2,
+            dr_ang=dr_ang,
+            r_max_ang=r_max_ang,
+            chi=chi,
+            chi_params=chi_params,
+            i3_mode=i3_mode,
+        )
+
+    workers = cpu_worker_count() if parallel_workers is None else max(1, int(parallel_workers))
+    estimated_radial_points = max(1, int(np.ceil(float(r_max_ang) / max(float(dr_ang), 1e-12))))
+    if len(impact_parameters) * estimated_radial_points < PHASE_PARALLEL_MIN_WORK_ITEMS:
+        workers = 1
+    if len(impact_parameters) <= 1 or workers <= 1:
+        rows = [compute_one(float(value)) for value in impact_parameters]
+    else:
+        with ThreadPoolExecutor(max_workers=min(workers, len(impact_parameters)), thread_name_prefix="phase-atoms") as executor:
+            rows = list(executor.map(compute_one, (float(value) for value in impact_parameters)))
+    return np.asarray(rows, dtype=float)
 
 
 def _dump_single_atom_phase_csv(

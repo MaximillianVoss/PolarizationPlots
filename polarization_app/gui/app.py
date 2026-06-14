@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import logging
-import os
 import tkinter as tk
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
@@ -55,6 +54,7 @@ from polarization_app.gui.plotting import (
     zoom_axis_around_point,
 )
 from polarization_app.physics.boundary_reflection import compute_boundary_point, compute_boundary_reflection_curves
+from polarization_app.physics.compute_backend import cpu_worker_count
 from polarization_app.physics.phase_integrals import (
     DEFAULT_PHASE_C1,
     DEFAULT_PHASE_C2,
@@ -246,7 +246,7 @@ class App(tk.Tk):
         self.trajectory_random_m = tk.BooleanVar(value=False)
         self.trajectory_sweep_label = tk.StringVar(value=TRAJECTORY_SWEEP_LABELS[TRAJECTORY_SWEEP_ENERGY])
         self.trajectory_auto = tk.BooleanVar(value=False)
-        self.trajectory_parallel_workers = tk.IntVar(value=max(1, min(2, os.cpu_count() or 1)))
+        self.trajectory_parallel_workers = tk.IntVar(value=cpu_worker_count())
         self.rashba_Emin = tk.DoubleVar(value=10.0)
         self.rashba_Emax = tk.DoubleVar(value=1000.0)
         self.rashba_Npts = tk.IntVar(value=240)
@@ -713,7 +713,7 @@ class App(tk.Tk):
             "Потоки расчёта",
             self.trajectory_parallel_workers,
             1,
-            max(1, min(8, os.cpu_count() or 1)),
+            cpu_worker_count(),
             current_row,
             description="Сколько потоков использовать для параллельного расчёта точек диапазона",
             resolution=1,
@@ -1442,6 +1442,7 @@ class App(tk.Tk):
             r_max_ang=float(self.rmax.get()),
             chi=interpolate_thomas_fermi_chi if self.use_table_chi.get() else exponential_chi,
             i3_mode="sum_avg" if self.i3_mode_sum.get() else "trapz",
+            parallel_workers=cpu_worker_count(),
         )
 
     def _boundary_energy_grid(self) -> np.ndarray:

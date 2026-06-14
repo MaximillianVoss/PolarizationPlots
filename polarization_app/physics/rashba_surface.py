@@ -88,8 +88,10 @@ def compute_rashba_surface_frame(
 
     ver_up_to_down_arr = _probability_array(ver_up_to_down, len(energies_eV), "Ver(+→-)")
     ver_down_to_up_arr = _probability_array(ver_down_to_up, len(energies_eV), "Ver(-→+)")
-    t_plus_sq = transmission_up * (1.0 + ver_down_to_up_arr - ver_up_to_down_arr)
-    t_minus_sq = transmission_down * (1.0 + ver_up_to_down_arr - ver_down_to_up_arr)
+    exit_up_weight = 0.5 * (1.0 - ver_up_to_down_arr + ver_down_to_up_arr)
+    exit_down_weight = 0.5 * (1.0 - ver_down_to_up_arr + ver_up_to_down_arr)
+    t_plus_sq = transmission_up * exit_up_weight
+    t_minus_sq = transmission_down * exit_down_weight
     denominator = t_plus_sq + t_minus_sq
     polarization = np.divide(
         t_plus_sq - t_minus_sq,
