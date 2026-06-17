@@ -1,20 +1,29 @@
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
+import polarization_app.physics.trajectory_phase as trajectory_phase
 from polarization_app.application.trajectory import (
+    DEFAULT_PRECISE_TRAJECTORY_MAX_PHASE_STEP_RAD,
+    DEFAULT_PRECISE_TRAJECTORY_MIN_STEPS,
+    DEFAULT_TRAJECTORY_MIN_STEPS,
+    TRAJECTORY_SWEEP_ANGLE_STEP,
     TRAJECTORY_SWEEP_ENERGY,
     TRAJECTORY_SWEEP_IMPACT,
     TrajectorySweepRequest,
     execute_trajectory_sweep,
 )
 from polarization_app.physics.phase_integrals import (
+    BOHR_TO_ANGSTROM,
     spline_thomas_fermi_chi,
     spline_thomas_fermi_chi_derivative,
 )
 from polarization_app.physics.trajectory_phase import (
     DEFAULT_THOMAS_FERMI_B_BOHR,
     ELECTRON_MASS_AMU,
+    RADIAL_BASE_PANEL_LIMIT,
+    _base_quadrature_panel_count,
     _trajectory_phase_rate_scalar,
     compute_atom_trajectory_phase,
     energy_eV_to_speed_mps_for_mass,
@@ -113,6 +122,43 @@ class TrajectoryPhaseTestCase(unittest.TestCase):
         self.assertGreater(result.r_min_ang, 0.13)
         self.assertLess(result.steps, 200)
 
+    def test_negative_radial_domain_repairs_lower_bound(self):
+        params = {
+            "energy_eV": 152.329210,
+            "mass_amu": 1.0,
+            "atomic_number": 80.0,
+            "impact_parameter_ang": 0.621,
+            "r0_ang": 2.17,
+            "angle_step_rad": np.deg2rad(3.0),
+            "orbital_l": 6,
+            "min_steps": 30,
+            "max_refinements": 6,
+        }
+        speed_mps = float(
+            trajectory_phase.energy_eV_to_speed_mps_for_mass(params["energy_eV"], params["mass_amu"])
+        )
+        speed_au = float(trajectory_phase.speed_mps_to_atomic_units(speed_mps))
+        mass_electron_units = trajectory_phase.mass_amu_to_electron_masses(params["mass_amu"])
+        impact_bohr = params["impact_parameter_ang"] / BOHR_TO_ANGSTROM
+        r0_bohr = params["r0_ang"] / BOHR_TO_ANGSTROM
+        true_r_min_bohr = trajectory_phase.find_minimum_approach_bohr(
+            atomic_number=params["atomic_number"],
+            impact_parameter_bohr=impact_bohr,
+            r0_bohr=r0_bohr,
+            speed_au=speed_au,
+            mass_electron_units=mass_electron_units,
+            chi=trajectory_phase.spline_thomas_fermi_chi,
+        )
+        bad_r_min_bohr = true_r_min_bohr * 0.8
+
+        with patch.object(trajectory_phase, "find_minimum_approach_bohr", return_value=bad_r_min_bohr):
+            result = trajectory_phase.compute_atom_trajectory_phase(**params)
+
+        self.assertTrue(result.converged)
+        self.assertEqual(result.status, "ok")
+        self.assertGreater(result.r_min_ang, bad_r_min_bohr * BOHR_TO_ANGSTROM)
+        self.assertAlmostEqual(result.r_min_ang, true_r_min_bohr * BOHR_TO_ANGSTROM, delta=1e-6)
+
     def test_low_energy_large_impact_finishes_near_turning_point(self):
         result = compute_atom_trajectory_phase(
             energy_eV=10.0,
@@ -150,7 +196,7 @@ class TrajectoryPhaseTestCase(unittest.TestCase):
         self.assertTrue(np.isfinite(result.phase_rad))
         self.assertTrue(np.isfinite(result.trajectory_angle_rad))
 
-    def test_dt_is_refined_until_minimum_step_count(self):
+    def test_quadrature_uses_requested_minimum_step_count(self):
         result = compute_atom_trajectory_phase(
             energy_eV=100.0,
             mass_amu=ELECTRON_MASS_AMU,
@@ -164,8 +210,48 @@ class TrajectoryPhaseTestCase(unittest.TestCase):
         )
 
         self.assertGreaterEqual(result.steps, 1000)
-        self.assertGreaterEqual(result.refinements, 1)
         self.assertTrue(result.converged)
+
+    def test_tiny_angle_step_is_capped_for_base_quadrature_grid(self):
+        tiny_angle_panels = _base_quadrature_panel_count(
+            angular_step_rad=np.deg2rad(0.01),
+            min_steps=30,
+        )
+        explicit_minimum_panels = _base_quadrature_panel_count(
+            angular_step_rad=np.deg2rad(0.01),
+            min_steps=RADIAL_BASE_PANEL_LIMIT + 250,
+        )
+
+        self.assertEqual(tiny_angle_panels, RADIAL_BASE_PANEL_LIMIT)
+        self.assertEqual(explicit_minimum_panels, RADIAL_BASE_PANEL_LIMIT + 250)
+
+    def test_capped_tiny_angle_keeps_uncapped_accuracy_after_refinement(self):
+        params = {
+            "energy_eV": 386.0,
+            "mass_amu": 1.0,
+            "atomic_number": 81.0,
+            "impact_parameter_ang": 0.2,
+            "r0_ang": 3.0,
+            "angle_step_rad": np.deg2rad(0.1),
+            "orbital_l": 4,
+            "min_steps": 100,
+            "max_refinements": 6,
+            "max_phase_step_rad": 0.05,
+        }
+        original_limit = trajectory_phase.RADIAL_BASE_PANEL_LIMIT
+        try:
+            trajectory_phase.RADIAL_BASE_PANEL_LIMIT = 1000
+            capped = trajectory_phase.compute_atom_trajectory_phase(**params)
+            trajectory_phase.RADIAL_BASE_PANEL_LIMIT = 1_000_000
+            uncapped = trajectory_phase.compute_atom_trajectory_phase(**params)
+        finally:
+            trajectory_phase.RADIAL_BASE_PANEL_LIMIT = original_limit
+
+        self.assertTrue(capped.converged)
+        self.assertTrue(uncapped.converged)
+        self.assertLess(capped.steps, uncapped.steps)
+        self.assertAlmostEqual(capped.phase_rad, uncapped.phase_rad, delta=1e-4)
+        self.assertAlmostEqual(capped.theta_rad, uncapped.theta_rad, delta=1e-4)
 
     def test_corrected_phase_rate_uses_orbital_factor_and_r_cubed(self):
         one = lambda x: np.ones_like(x, dtype=float)
@@ -184,6 +270,108 @@ class TrajectoryPhaseTestCase(unittest.TestCase):
 
 
 class TrajectorySweepTestCase(unittest.TestCase):
+    def test_precise_mode_uses_stricter_step_requirements(self):
+        result = execute_trajectory_sweep(
+            TrajectorySweepRequest(
+                sweep_mode=TRAJECTORY_SWEEP_IMPACT,
+                point_count=1,
+                atomic_number=80.0,
+                mass_amu=1.0,
+                energy_eV=3000.0,
+                impact_min_ang=0.18,
+                impact_max_ang=0.2,
+                r0_ang=3.0,
+                angle_step_deg=3.0,
+                orbital_l=5,
+                magnetic_m=4,
+                precise_mode=True,
+                max_phase_step_rad=DEFAULT_PRECISE_TRAJECTORY_MAX_PHASE_STEP_RAD,
+                parallel_workers=1,
+            )
+        )
+
+        self.assertTrue(result.request.precise_mode)
+        self.assertGreaterEqual(int(result.frame.iloc[0]["steps"]), DEFAULT_PRECISE_TRAJECTORY_MIN_STEPS)
+
+    def test_convergence_check_adds_dtheta_diagnostics(self):
+        result = execute_trajectory_sweep(
+            TrajectorySweepRequest(
+                sweep_mode=TRAJECTORY_SWEEP_IMPACT,
+                point_count=2,
+                atomic_number=29.0,
+                energy_eV=200.0,
+                impact_min_ang=0.7,
+                impact_max_ang=0.8,
+                r0_ang=10.0,
+                angle_step_deg=2.0,
+                orbital_l=1,
+                magnetic_m=0,
+                convergence_check=True,
+                parallel_workers=1,
+            )
+        )
+        frame = result.frame
+
+        self.assertTrue(frame["convergence_checked"].all())
+        self.assertIn("phase_rad_dtheta_half", frame.columns)
+        self.assertIn("phase_rad_dtheta_quarter", frame.columns)
+        self.assertTrue(np.isfinite(frame["convergence_phase_error_rad"].to_numpy(dtype=float)).all())
+        self.assertTrue(np.isfinite(frame["convergence_probability_error"].to_numpy(dtype=float)).all())
+
+    def test_angle_step_sweep_is_stable_for_high_z_case(self):
+        result = execute_trajectory_sweep(
+            TrajectorySweepRequest(
+                sweep_mode=TRAJECTORY_SWEEP_ANGLE_STEP,
+                point_count=25,
+                atomic_number=81.0,
+                mass_amu=1.0,
+                energy_eV=386.0,
+                impact_parameter_ang=0.2,
+                r0_ang=3.0,
+                angle_step_min_deg=0.1,
+                angle_step_max_deg=5.0,
+                orbital_l=4,
+                magnetic_m=2,
+                parallel_workers=2,
+            )
+        )
+        frame = result.frame
+
+        self.assertTrue(frame["converged"].all())
+        self.assertLess(
+            float(np.ptp(frame["p_flip_initial_up"].to_numpy(dtype=float))),
+            0.005,
+        )
+        self.assertLess(
+            float(np.ptp(frame["p_flip_initial_down"].to_numpy(dtype=float))),
+            0.006,
+        )
+
+    def test_default_min_steps_avoids_coarse_impact_jump(self):
+        result = execute_trajectory_sweep(
+            TrajectorySweepRequest(
+                sweep_mode=TRAJECTORY_SWEEP_IMPACT,
+                point_count=13,
+                atomic_number=80.0,
+                mass_amu=1.0,
+                energy_eV=3000.0,
+                impact_min_ang=0.166,
+                impact_max_ang=0.171,
+                r0_ang=3.0,
+                angle_step_deg=3.0,
+                orbital_l=5,
+                magnetic_m=4,
+                parallel_workers=2,
+            )
+        )
+
+        frame = result.frame
+        max_angle_jump = np.max(np.abs(np.diff(frame["theta_deg"].to_numpy(dtype=float))))
+        self.assertEqual(result.request.min_steps, DEFAULT_TRAJECTORY_MIN_STEPS)
+        self.assertTrue(frame["converged"].all())
+        self.assertGreaterEqual(int(frame["steps"].min()), DEFAULT_TRAJECTORY_MIN_STEPS)
+        self.assertLess(max_angle_jump, 5.0)
+
     def test_energy_sweep_builds_exportable_frame(self):
         result = execute_trajectory_sweep(
             TrajectorySweepRequest(

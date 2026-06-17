@@ -33,6 +33,9 @@ DEFAULT_SPIN_ORBIT_C1 = 1.0 / (4.0 * INVERSE_FINE_STRUCTURE * INVERSE_FINE_STRUC
 RADIAL_ROOT_REFINE_THRESHOLD = 2e-3
 RADIAL_ROOT_REFINE_SAMPLES = 96
 RADIAL_TURNING_SPEED_RELATIVE_THRESHOLD = 1e-3
+RADIAL_DOMAIN_REPAIR_SAMPLES = 256
+RADIAL_DOMAIN_REPAIR_ATTEMPTS = 8
+RADIAL_BASE_PANEL_LIMIT = 1000
 
 
 @dataclass(frozen=True)
@@ -123,6 +126,7 @@ def compute_atom_trajectory_phase(
     min_steps: int = 30,
     max_refinements: int = 6,
     max_steps: int = 200_000,
+    max_phase_step_rad: float | None = None,
     chi: ChiFunction = spline_thomas_fermi_chi,
     chi_derivative: ChiFunction = spline_thomas_fermi_chi_derivative,
     spin_orbit_c1: float = DEFAULT_SPIN_ORBIT_C1,
@@ -136,6 +140,7 @@ def compute_atom_trajectory_phase(
         max_refinements=max_refinements,
         max_steps=max_steps,
         orbital_l=orbital_l,
+        max_phase_step_rad=max_phase_step_rad,
     )
 
     speed_mps = float(energy_eV_to_speed_mps_for_mass(float(energy_eV), mass_amu))
@@ -165,47 +170,31 @@ def compute_atom_trajectory_phase(
     turning_value_threshold = initial_radial_speed_squared * (RADIAL_TURNING_SPEED_RELATIVE_THRESHOLD ** 2)
     dt_initial_au = float(angle_step_rad) * (r_min_bohr * r_min_bohr) / (impact_bohr * speed_au)
 
-    last_result: AtomTrajectoryResult | None = None
-    for refinements in range(int(max_refinements) + 1):
-        dt_au = dt_initial_au / (10.0 ** refinements)
-        result = _integrate_half_trajectory(
-            energy_eV=float(energy_eV),
-            mass_amu=float(mass_amu),
-            atomic_number=float(atomic_number),
-            impact_parameter_ang=float(impact_parameter_ang),
-            r0_ang=float(r0_ang),
-            angle_step_rad=float(angle_step_rad),
-            speed_mps=speed_mps,
-            speed_au=speed_au,
-            impact_bohr=impact_bohr,
-            r0_bohr=r0_bohr,
-            u0_au=u0_au,
-            mass_electron_units=mass_electron_units,
-            r_min_bohr=r_min_bohr,
-            dt_initial_au=dt_initial_au,
-            dt_au=dt_au,
-            turning_value_threshold=turning_value_threshold,
-            refinements=refinements,
-            min_steps=int(min_steps),
-            max_steps=int(max_steps),
-            orbital_l=int(orbital_l),
-            atomic_number_for_potential=float(atomic_number),
-            chi=chi,
-            chi_derivative=chi_derivative,
-            spin_orbit_c1=float(spin_orbit_c1),
-        )
-        last_result = result
-        if result.steps >= int(min_steps):
-            return result
-
-    if last_result is None:
-        raise RuntimeError("Не удалось выполнить траекторный расчёт.")
-    return AtomTrajectoryResult(
-        **{
-            **last_result.__dict__,
-            "converged": False,
-            "status": f"steps < {int(min_steps)} после {int(max_refinements)} уточнений dt",
-        }
+    return _integrate_half_trajectory(
+        energy_eV=float(energy_eV),
+        mass_amu=float(mass_amu),
+        atomic_number=float(atomic_number),
+        impact_parameter_ang=float(impact_parameter_ang),
+        r0_ang=float(r0_ang),
+        angle_step_rad=float(angle_step_rad),
+        speed_mps=speed_mps,
+        speed_au=speed_au,
+        impact_bohr=impact_bohr,
+        r0_bohr=r0_bohr,
+        u0_au=u0_au,
+        mass_electron_units=mass_electron_units,
+        r_min_bohr=r_min_bohr,
+        dt_initial_au=dt_initial_au,
+        turning_value_threshold=turning_value_threshold,
+        min_steps=int(min_steps),
+        max_refinements=int(max_refinements),
+        max_steps=int(max_steps),
+        max_phase_step_rad=max_phase_step_rad,
+        orbital_l=int(orbital_l),
+        atomic_number_for_potential=float(atomic_number),
+        chi=chi,
+        chi_derivative=chi_derivative,
+        spin_orbit_c1=float(spin_orbit_c1),
     )
 
 
@@ -340,6 +329,70 @@ def _solve_bracketed_root(function: Callable[[float], float], lower: float, uppe
     return 0.5 * (low + high)
 
 
+def _repair_radial_integration_lower_bound(
+    *,
+    r_min_bohr: float,
+    r0_bohr: float,
+    atomic_number: float,
+    impact_parameter_bohr: float,
+    u0_au: float,
+    mass_electron_units: float,
+    speed_au: float,
+    turning_value_threshold: float,
+    chi: ChiFunction,
+) -> float:
+    lower = float(r_min_bohr)
+    upper = float(r0_bohr)
+    tolerance = max(1e-12, float(turning_value_threshold))
+    if lower <= 0.0 or lower >= upper:
+        return lower
+
+    def equation(r_bohr: float) -> float:
+        return _radial_speed_squared(
+            float(r_bohr),
+            atomic_number=atomic_number,
+            impact_parameter_bohr=impact_parameter_bohr,
+            r0_bohr=upper,
+            u0_au=u0_au,
+            mass_electron_units=mass_electron_units,
+            speed_au=speed_au,
+            chi=chi,
+        )
+
+    for _ in range(RADIAL_DOMAIN_REPAIR_ATTEMPTS):
+        y_values = np.linspace(0.0, 1.0, RADIAL_DOMAIN_REPAIR_SAMPLES, dtype=float)
+        sample_radii = lower + (upper - lower) * y_values * y_values
+        sample_values = np.array([equation(radius) for radius in sample_radii], dtype=float)
+        if np.any(~np.isfinite(sample_values)):
+            raise RuntimeError("Подкоренное выражение для dr стало нечисловым.")
+
+        negative_indices = np.flatnonzero(sample_values < -tolerance)
+        if negative_indices.size == 0:
+            return lower
+
+        last_negative_index = int(negative_indices[-1])
+        outer_indices = np.flatnonzero(sample_values[last_negative_index + 1 :] >= 0.0)
+        if outer_indices.size == 0:
+            raise RuntimeError("Подкоренное выражение для dr осталось отрицательным до r0.")
+
+        outer_index = last_negative_index + 1 + int(outer_indices[0])
+        repaired = _solve_bracketed_root(
+            equation,
+            float(sample_radii[last_negative_index]),
+            float(sample_radii[outer_index]),
+        )
+        guard = max(abs(repaired) * 1e-12, abs(upper - repaired) * 1e-12, 1e-14)
+        lower = min(upper, float(repaired) + guard)
+
+    raise RuntimeError("Не удалось вывести r_min из области отрицательного подкоренного выражения.")
+
+
+def _base_quadrature_panel_count(*, angular_step_rad: float, min_steps: int) -> int:
+    angle_driven_panels = int(np.ceil(np.pi / max(float(angular_step_rad), 1e-12)))
+    capped_angle_panels = min(angle_driven_panels, RADIAL_BASE_PANEL_LIMIT)
+    return max(int(min_steps), capped_angle_panels)
+
+
 def _integrate_half_trajectory(
     *,
     energy_eV: float,
@@ -356,77 +409,160 @@ def _integrate_half_trajectory(
     mass_electron_units: float,
     r_min_bohr: float,
     dt_initial_au: float,
-    dt_au: float,
     turning_value_threshold: float,
-    refinements: int,
     min_steps: int,
+    max_refinements: int,
     max_steps: int,
+    max_phase_step_rad: float | None,
     orbital_l: int,
     atomic_number_for_potential: float,
     chi: ChiFunction,
     chi_derivative: ChiFunction,
     spin_orbit_c1: float,
 ) -> AtomTrajectoryResult:
-    r_bohr = float(r0_bohr)
-    theta_half = 0.0
-    phase_half = 0.0
-    steps = 0
-    dt_used_au = float(dt_au)
-    effective_r_min_bohr = float(r_min_bohr)
+    effective_r_min_bohr = _repair_radial_integration_lower_bound(
+        r_min_bohr=float(r_min_bohr),
+        r0_bohr=float(r0_bohr),
+        atomic_number=float(atomic_number_for_potential),
+        impact_parameter_bohr=float(impact_bohr),
+        u0_au=float(u0_au),
+        mass_electron_units=float(mass_electron_units),
+        speed_au=float(speed_au),
+        turning_value_threshold=float(turning_value_threshold),
+        chi=chi,
+    )
+    angular_step_rad = float(angle_step_rad)
+    angular_denominator = impact_bohr * speed_au
 
-    for _ in range(max_steps):
-        radial_speed_squared = _radial_speed_squared(
-            r_bohr,
-            atomic_number=atomic_number_for_potential,
-            impact_parameter_bohr=impact_bohr,
-            r0_bohr=r0_bohr,
-            u0_au=u0_au,
-            mass_electron_units=mass_electron_units,
-            speed_au=speed_au,
+    def radial_equation(r_bohr: float) -> float:
+        return _radial_speed_squared(
+            float(r_bohr),
+            atomic_number=float(atomic_number_for_potential),
+            impact_parameter_bohr=float(impact_bohr),
+            r0_bohr=float(r0_bohr),
+            u0_au=float(u0_au),
+            mass_electron_units=float(mass_electron_units),
+            speed_au=float(speed_au),
             chi=chi,
         )
-        if radial_speed_squared < 0.0 and abs(radial_speed_squared) <= max(1e-12, turning_value_threshold):
-            radial_speed_squared = 0.0
-        if not np.isfinite(radial_speed_squared) or radial_speed_squared < 0.0:
-            raise RuntimeError("Подкоренное выражение для dr стало отрицательным.")
-        if radial_speed_squared <= turning_value_threshold:
-            effective_r_min_bohr = float(r_bohr)
-            steps += 1
-            break
-        radial_speed = float(np.sqrt(radial_speed_squared))
-        angular_rate = impact_bohr * speed_au / (r_bohr * r_bohr)
-        phase_rate = _trajectory_phase_rate_scalar(
-            r_bohr,
-            atomic_number_for_potential,
-            chi=chi,
-            chi_derivative=chi_derivative,
-            spin_orbit_c1=spin_orbit_c1,
-            orbital_l=orbital_l,
-        )
-        dt_used_au = float(dt_au) * (r_bohr * r_bohr) / (r_min_bohr * r_min_bohr)
-        dr_bohr = radial_speed * dt_used_au
-        if r_bohr - dr_bohr <= r_min_bohr:
-            effective_r_min_bohr = float(r_min_bohr)
-            dr_final = max(r_bohr - r_min_bohr, 0.0)
-            dt_final_au = dr_final / radial_speed if radial_speed > 0.0 else 0.0
-            theta_half += angular_rate * dt_final_au
-            phase_half += phase_rate * dt_final_au
-            steps += 1
-            break
 
-        theta_half += angular_rate * dt_used_au
-        phase_half += phase_rate * dt_used_au
-        r_bohr -= dr_bohr
-        steps += 1
+    def integrate_by_radius(panel_count: int) -> tuple[float, float, bool]:
+        nonlocal effective_r_min_bohr
+        repaired_domain = False
+        panels = int(panel_count)
+        z = float(atomic_number_for_potential)
+        b = DEFAULT_THOMAS_FERMI_B_BOHR
+        tolerance = max(1e-12, float(turning_value_threshold))
+        for _ in range(RADIAL_DOMAIN_REPAIR_ATTEMPTS):
+            y = (np.arange(panels, dtype=float) + 0.5) / panels
+            radial_span = r0_bohr - effective_r_min_bohr
+            r_values = effective_r_min_bohr + radial_span * y * y
+            dr_dy = 2.0 * radial_span * y
+            x_values = (z ** (1.0 / 3.0)) * r_values / b
+            chi_values = np.asarray(chi(x_values), dtype=float)
+            chi_derivative_values = np.asarray(chi_derivative(x_values), dtype=float)
+            potential_values = -z * chi_values / r_values
+            radial_speed_squared = (
+                speed_au * speed_au
+                + 2.0 * (u0_au - potential_values) / float(mass_electron_units)
+                - (impact_bohr * impact_bohr * speed_au * speed_au) / (r_values * r_values)
+            )
+            if np.any(~np.isfinite(radial_speed_squared)):
+                raise RuntimeError("Подкоренное выражение для dr стало нечисловым.")
+
+            small_negative = (radial_speed_squared < 0.0) & (np.abs(radial_speed_squared) <= tolerance)
+            radial_speed_squared = np.where(small_negative, 0.0, radial_speed_squared)
+            negative_indices = np.flatnonzero(radial_speed_squared < 0.0)
+            if negative_indices.size:
+                last_negative_index = int(negative_indices[-1])
+                outer_indices = np.flatnonzero(radial_speed_squared[last_negative_index + 1 :] >= 0.0)
+                if outer_indices.size:
+                    outer_radius = float(r_values[last_negative_index + 1 + int(outer_indices[0])])
+                elif radial_equation(r0_bohr) >= 0.0:
+                    outer_radius = float(r0_bohr)
+                else:
+                    raise RuntimeError("Подкоренное выражение для dr осталось отрицательным до r0.")
+
+                repaired = _solve_bracketed_root(
+                    radial_equation,
+                    float(r_values[last_negative_index]),
+                    outer_radius,
+                )
+                guard = max(abs(repaired) * 1e-12, abs(r0_bohr - repaired) * 1e-12, 1e-14)
+                new_lower = min(float(r0_bohr), float(repaired) + guard)
+                if new_lower <= effective_r_min_bohr:
+                    new_lower = min(float(r0_bohr), np.nextafter(effective_r_min_bohr, float(r0_bohr)))
+                effective_r_min_bohr = new_lower
+                repaired_domain = True
+                continue
+
+            radial_speed = np.sqrt(np.maximum(radial_speed_squared, 1e-300))
+            theta_integrand = impact_bohr * speed_au * dr_dy / (r_values * r_values * radial_speed)
+            orbital_factor = 2 * int(orbital_l) + 1
+            phase_rate = 0.5 * float(spin_orbit_c1) * orbital_factor * (
+                z * chi_values / (r_values * r_values * r_values)
+                - (z ** (4.0 / 3.0)) * chi_derivative_values / (r_values * r_values * b)
+            )
+            phase_integrand = phase_rate * dr_dy / radial_speed
+            return float(np.sum(theta_integrand) / panels), float(np.sum(phase_integrand) / panels), repaired_domain
+
+        raise RuntimeError("Не удалось вывести r_min из области отрицательного подкоренного выражения.")
+
+    if r0_bohr <= effective_r_min_bohr:
+        theta_half = 0.0
+        phase_half = 0.0
+        steps = 1
+        grid_refinements = 0
+        quadrature_converged = True
     else:
-        raise RuntimeError(f"Траекторный цикл превысил max_steps={max_steps}. Увеличьте dθ или лимит шагов.")
+        base_steps = _base_quadrature_panel_count(
+            angular_step_rad=angular_step_rad,
+            min_steps=int(min_steps),
+        )
+
+        previous_theta_half: float | None = None
+        previous_phase_half: float | None = None
+        theta_half = 0.0
+        phase_half = 0.0
+        steps = base_steps
+        grid_refinements = 0
+        quadrature_converged = int(max_refinements) <= 0
+        phase_tolerance = min(2e-3, float(max_phase_step_rad) * 0.05) if max_phase_step_rad is not None else 2e-3
+        theta_tolerance = 1e-3
+        for refinement_index in range(int(max_refinements) + 1):
+            steps = min(max(base_steps * (2 ** refinement_index), 1), int(max_steps))
+            grid_refinements = refinement_index
+            theta_half, phase_half, repaired_domain = integrate_by_radius(steps)
+            if repaired_domain:
+                previous_theta_half = None
+                previous_phase_half = None
+            if previous_theta_half is not None and previous_phase_half is not None:
+                if (
+                    abs(theta_half - previous_theta_half) <= theta_tolerance
+                    and abs(phase_half - previous_phase_half) <= phase_tolerance
+                ):
+                    quadrature_converged = True
+                    break
+            previous_theta_half = theta_half
+            previous_phase_half = phase_half
+            if steps >= int(max_steps):
+                break
 
     theta_rad = 2.0 * theta_half
     phase_rad = 2.0 * phase_half
     alpha_rad = float(np.arcsin(np.clip(impact_bohr / r0_bohr, -1.0, 1.0)))
     trajectory_angle_rad = 2.0 * alpha_rad + theta_rad - np.pi
-    converged = steps >= min_steps
-    status = "ok" if converged else f"steps < {min_steps}: dt будет уменьшен в 10 раз"
+    has_minimum_panels = steps >= min_steps
+    converged = bool(has_minimum_panels and quadrature_converged)
+    if converged:
+        status = "ok"
+    elif not quadrature_converged:
+        status = (
+            f"квадратура не сошлась после {grid_refinements} уточнений сетки; "
+            f"steps={steps}, max_steps={max_steps}"
+        )
+    else:
+        status = f"steps < {min_steps}: сетка интегрирования будет уточнена"
 
     return AtomTrajectoryResult(
         energy_eV=energy_eV,
@@ -445,8 +581,8 @@ def _integrate_half_trajectory(
         phase_rad=phase_rad,
         steps=steps,
         dt_initial_au=dt_initial_au,
-        dt_final_au=dt_used_au,
-        refinements=refinements,
+        dt_final_au=theta_half * effective_r_min_bohr * effective_r_min_bohr / max(angular_denominator * max(steps, 1), 1e-300),
+        refinements=grid_refinements,
         converged=converged,
         status=status,
     )
@@ -566,6 +702,7 @@ def _validate_inputs(
     max_refinements: int,
     max_steps: int,
     orbital_l: int,
+    max_phase_step_rad: float | None,
 ) -> None:
     if not np.isfinite(atomic_number) or atomic_number <= 0.0:
         raise ValueError("Z должен быть положительным.")
@@ -583,6 +720,10 @@ def _validate_inputs(
         raise ValueError("max_steps должен быть положительным.")
     if int(orbital_l) < 0:
         raise ValueError("L должен быть неотрицательным.")
+    if max_phase_step_rad is not None and (
+        not np.isfinite(max_phase_step_rad) or float(max_phase_step_rad) <= 0.0
+    ):
+        raise ValueError("max_phase_step_rad должен быть положительным.")
 
 
 __all__ = [
@@ -591,6 +732,7 @@ __all__ = [
     "ATOMIC_SPEED_MPS",
     "DEFAULT_THOMAS_FERMI_B_BOHR",
     "DEFAULT_SPIN_ORBIT_C1",
+    "RADIAL_BASE_PANEL_LIMIT",
     "AtomTrajectoryResult",
     "energy_eV_to_speed_mps_for_mass",
     "mass_amu_to_electron_masses",

@@ -26,6 +26,10 @@ from polarization_app.application.rashba_export import export_rashba_surface_fil
 from polarization_app.application.spectrum_export import export_spectrum_bundle
 from polarization_app.application.table_export import SUPPORTED_EXPORT_SUFFIXES
 from polarization_app.application.trajectory import (
+    DEFAULT_PRECISE_TRAJECTORY_MAX_PHASE_STEP_RAD,
+    DEFAULT_PRECISE_TRAJECTORY_MIN_STEPS,
+    DEFAULT_TRAJECTORY_MAX_PHASE_STEP_RAD,
+    DEFAULT_TRAJECTORY_MIN_STEPS,
     TRAJECTORY_AXIS_LABELS,
     TRAJECTORY_SWEEP_BY_LABEL,
     TRAJECTORY_SWEEP_ANGLE_STEP,
@@ -62,7 +66,11 @@ from polarization_app.physics.phase_integrals import (
     interpolate_thomas_fermi_chi,
 )
 from polarization_app.physics.rashba_surface import RashbaSurfaceRequest, RashbaSurfaceResult, compute_rashba_surface
-from polarization_app.physics.trajectory_phase import DEFAULT_THOMAS_FERMI_B_BOHR, ELECTRON_MASS_AMU
+from polarization_app.physics.trajectory_phase import (
+    DEFAULT_THOMAS_FERMI_B_BOHR,
+    ELECTRON_MASS_AMU,
+    RADIAL_BASE_PANEL_LIMIT,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -244,6 +252,8 @@ class App(tk.Tk):
         self.trajectory_orbital_l = tk.IntVar(value=1)
         self.trajectory_magnetic_m = tk.IntVar(value=0)
         self.trajectory_random_m = tk.BooleanVar(value=False)
+        self.trajectory_precise_mode = tk.BooleanVar(value=False)
+        self.trajectory_convergence_check = tk.BooleanVar(value=False)
         self.trajectory_sweep_label = tk.StringVar(value=TRAJECTORY_SWEEP_LABELS[TRAJECTORY_SWEEP_ENERGY])
         self.trajectory_auto = tk.BooleanVar(value=False)
         self.trajectory_parallel_workers = tk.IntVar(value=cpu_worker_count())
@@ -796,7 +806,7 @@ class App(tk.Tk):
             current_row,
             description=(
                 "Нижняя граница прицельного расстояния r_п для sweep; "
-                "при max_steps поднимите до 0.25-0.3 Å"
+                "если интегрирование не сходится, поднимите до 0.25-0.3 Å"
             ),
             validation_key="impact_min",
         ); current_row += 1
@@ -827,7 +837,10 @@ class App(tk.Tk):
             0.1,
             5.0,
             current_row,
-            description="Угловой шаг интегрирования; если видите max_steps, увеличьте этот ползунок до 2-5°",
+            description=(
+                "Угловой шаг интегрирования задаёт базовую сетку; очень малые dθ "
+                "ограничиваются автоматикой, а точность проверяется сходимостью"
+            ),
             validation_key="angle_step",
         ); current_row += 1
         self._make_slider(
@@ -837,7 +850,7 @@ class App(tk.Tk):
             0.1,
             5.0,
             current_row,
-            description="Нижняя граница шага dθ для sweep по точности интегрирования",
+            description="Нижняя граница sweep по dθ; слишком мелкая базовая сетка автоматически ограничивается",
             validation_key="angle_step_min",
         ); current_row += 1
         self._make_slider(
@@ -847,7 +860,7 @@ class App(tk.Tk):
             0.1,
             5.0,
             current_row,
-            description="Верхняя граница шага dθ для sweep по точности интегрирования",
+            description="Верхняя граница sweep по dθ; используйте проверку сходимости для контроля точности",
             validation_key="angle_step_max",
         ); current_row += 1
         self._make_slider(
@@ -893,6 +906,30 @@ class App(tk.Tk):
         self._attach_tooltip(
             random_m_check,
             "Если включено, для каждой точки M выбирается случайно из допустимого диапазона.",
+        )
+        current_row += 1
+
+        precise_mode_check = ttk.Checkbutton(
+            section,
+            text="Точный режим",
+            variable=self.trajectory_precise_mode,
+        )
+        precise_mode_check.grid(row=current_row, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self._attach_tooltip(
+            precise_mode_check,
+            "Увеличивает минимум панелей квадратуры и ужесточает проверку сходимости фазы.",
+        )
+        current_row += 1
+
+        convergence_check = ttk.Checkbutton(
+            section,
+            text="Проверка сходимости dθ/dθ/2/dθ/4",
+            variable=self.trajectory_convergence_check,
+        )
+        convergence_check.grid(row=current_row, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self._attach_tooltip(
+            convergence_check,
+            "Считает каждую точку трижды и подсвечивает участки, где фаза или вероятность заметно меняется.",
         )
         current_row += 1
 
@@ -1234,6 +1271,8 @@ class App(tk.Tk):
             self.trajectory_orbital_l,
             self.trajectory_magnetic_m,
             self.trajectory_random_m,
+            self.trajectory_precise_mode,
+            self.trajectory_convergence_check,
             self.trajectory_sweep_label,
             self.trajectory_parallel_workers,
         ):
@@ -1465,6 +1504,7 @@ class App(tk.Tk):
         return TRAJECTORY_SWEEP_BY_LABEL[self.trajectory_sweep_label.get()]
 
     def _current_trajectory_request(self) -> TrajectorySweepRequest:
+        precise_mode = bool(self.trajectory_precise_mode.get())
         return TrajectorySweepRequest(
             sweep_mode=self._trajectory_sweep_mode(),
             point_count=int(self.trajectory_Npts.get()),
@@ -1483,8 +1523,15 @@ class App(tk.Tk):
             orbital_l=int(self.trajectory_orbital_l.get()),
             magnetic_m=int(self.trajectory_magnetic_m.get()),
             random_m=bool(self.trajectory_random_m.get()),
-            min_steps=30,
+            min_steps=DEFAULT_PRECISE_TRAJECTORY_MIN_STEPS if precise_mode else DEFAULT_TRAJECTORY_MIN_STEPS,
             max_refinements=6,
+            precise_mode=precise_mode,
+            convergence_check=bool(self.trajectory_convergence_check.get()),
+            max_phase_step_rad=(
+                DEFAULT_PRECISE_TRAJECTORY_MAX_PHASE_STEP_RAD
+                if precise_mode
+                else DEFAULT_TRAJECTORY_MAX_PHASE_STEP_RAD
+            ),
             parallel_workers=int(self.trajectory_parallel_workers.get()),
         )
 
@@ -1536,15 +1583,18 @@ class App(tk.Tk):
             if payload is None:
                 raise RuntimeError("Сначала выполните траекторный расчёт или выберите Ver=0.")
             frame = payload.frame
+            source_mask = np.ones(len(frame), dtype=bool)
+            if "converged" in frame:
+                source_mask &= frame["converged"].fillna(False).astype(bool).to_numpy()
             return (
                 self._interpolate_probability_curve(
-                    frame["energy_eV"].to_numpy(dtype=float),
-                    frame["p_flip_initial_up"].to_numpy(dtype=float),
+                    frame.loc[source_mask, "energy_eV"].to_numpy(dtype=float),
+                    frame.loc[source_mask, "p_flip_initial_up"].to_numpy(dtype=float),
                     target_energies_eV,
                 ),
                 self._interpolate_probability_curve(
-                    frame["energy_eV"].to_numpy(dtype=float),
-                    frame["p_flip_initial_down"].to_numpy(dtype=float),
+                    frame.loc[source_mask, "energy_eV"].to_numpy(dtype=float),
+                    frame.loc[source_mask, "p_flip_initial_down"].to_numpy(dtype=float),
                     target_energies_eV,
                 ),
             )
@@ -1690,11 +1740,11 @@ class App(tk.Tk):
         if "max_steps" in status_text:
             if result.request.sweep_mode == TRAJECTORY_SWEEP_IMPACT:
                 add("impact_min", "Часть точек не сошлась: увеличьте r_п min, например до 0.3 Å.")
-                add("angle_step", "Можно также увеличить dθ фикс. до 2-5°.")
+                add("angle_step", "Не используйте увеличение dθ как исправление точности; лучше исключить слишком малые r_п.")
             elif result.request.sweep_mode == TRAJECTORY_SWEEP_ANGLE_STEP:
-                add("angle_step_min", "Часть точек не сошлась: увеличьте dθ min.")
+                add("angle_step_min", "Часть точек не сошлась: проверьте r_п и точный режим.")
             else:
-                add("angle_step", "Часть точек не сошлась: увеличьте dθ фикс. до 2-5°.")
+                add("angle_step", "Часть точек не сошлась: проверьте r_п и точный режим.")
         if "r0" in status_text or "r_п" in status_text:
             add("r0", "Проверьте, что r0 больше всех используемых r_п.")
 
@@ -2460,6 +2510,16 @@ class App(tk.Tk):
         refinements_values = frame["refinements"].to_numpy(dtype=float)
         finite_refinements = refinements_values[np.isfinite(refinements_values)]
         refinements_text = str(int(np.nanmax(finite_refinements))) if finite_refinements.size else "нет"
+        convergence_text = "Проверка сходимости dθ/dθ/2/dθ/4: выключена\n"
+        if "convergence_checked" in frame and bool(frame["convergence_checked"].fillna(False).any()):
+            unstable_count = int(frame["convergence_unstable"].fillna(False).astype(bool).sum())
+            phase_error = value_range("convergence_phase_error_rad", " рад")
+            probability_error = value_range("convergence_probability_error")
+            convergence_text = (
+                "Проверка сходимости dθ/dθ/2/dθ/4: включена\n"
+                f"Нестабильных точек: {unstable_count}/{len(frame)}\n"
+                f"Ошибка фазы: {phase_error}; ошибка вероятности: {probability_error}\n"
+            )
         error_text = ""
         if failed_count:
             failed_status = str(frame.loc[~frame["converged"].astype(bool), "status"].iloc[0])
@@ -2470,15 +2530,19 @@ class App(tk.Tk):
             f"Режим: {TRAJECTORY_SWEEP_LABELS[request.sweep_mode]}, точек: {len(frame)}\n"
             f"Z={request.atomic_number:.6g}, масса={request.mass_amu:.8g} а.е.м, "
             f"b={DEFAULT_THOMAS_FERMI_B_BOHR:.6g} a0 (константа)\n"
-            f"r0={request.r0_ang:.6g} Å, min steps={request.min_steps}, max refinements={request.max_refinements}\n"
+            f"r0={request.r0_ang:.6g} Å, мин. панелей={request.min_steps}, "
+            f"автолимит базы={RADIAL_BASE_PANEL_LIMIT}, макс. уточнений сетки={request.max_refinements}\n"
+            f"Точный режим: {'включен' if request.precise_mode else 'выключен'}, "
+            f"контроль сходимости фазы={request.max_phase_step_rad:.6g} рад\n"
             f"L={request.orbital_l}, M={'random' if request.random_m else request.magnetic_m}\n"
             "\n"
             f"ϕ: {value_range('phase_rad', ' рад')}\n"
             f"θ: {value_range('theta_deg', '°')}\n"
             f"φ: {value_range('trajectory_phi_deg', '°')}\n"
             f"r_min: {value_range('r_min_ang', ' Å')}\n"
-            f"Внутренние шаги интегрирования: {steps_range}, max уточнений dt: {refinements_text}\n"
-            f"Сошлось по правилу steps >= {request.min_steps}: {converged_count}/{len(frame)}\n"
+            f"Панели квадратуры: {steps_range}, уточнений сетки: {refinements_text}\n"
+            f"Сошлось по минимальному числу панелей >= {request.min_steps}: {converged_count}/{len(frame)}\n"
+            f"{convergence_text}"
             f"{error_text}"
             f"Время расчёта: {result.elapsed_ms:.3g} мс\n"
             "\n"

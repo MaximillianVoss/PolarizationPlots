@@ -24,8 +24,28 @@ class RashbaSurfaceTestCase(unittest.TestCase):
 
         np.testing.assert_allclose(frame["transmission_up"], frame["transmission_down"], atol=1e-12)
         np.testing.assert_allclose(frame["t_plus_sq"], frame["t_minus_sq"], atol=1e-12)
-        np.testing.assert_allclose(frame["t_plus_sq"], frame["transmission_up"] * 0.5, atol=1e-12)
-        np.testing.assert_allclose(frame["t_minus_sq"], frame["transmission_down"] * 0.5, atol=1e-12)
+        np.testing.assert_allclose(frame["t_plus_sq"], frame["transmission_up"], atol=1e-12)
+        np.testing.assert_allclose(frame["t_minus_sq"], frame["transmission_down"], atol=1e-12)
+        np.testing.assert_allclose(frame["polarization"], np.zeros(len(frame)), atol=1e-12)
+
+    def test_normal_emission_without_flip_uses_energy_barrier_probability(self):
+        result = compute_rashba_surface(
+            RashbaSurfaceRequest(
+                energy_min_eV=10.0,
+                energy_max_eV=1000.0,
+                point_count=7,
+                rashba_alpha_au=0.05,
+                emission_angle_deg=0.0,
+                surface_potential_eV=5.0,
+                ver_up_to_down=0.0,
+                ver_down_to_up=0.0,
+            )
+        )
+        frame = result.frame
+        expected = (frame["energy_eV"].to_numpy(dtype=float) - 5.0) / frame["energy_eV"].to_numpy(dtype=float)
+
+        np.testing.assert_allclose(frame["t_plus_sq"], expected, atol=1e-12)
+        np.testing.assert_allclose(frame["t_minus_sq"], expected, atol=1e-12)
         np.testing.assert_allclose(frame["polarization"], np.zeros(len(frame)), atol=1e-12)
 
     def test_volume_flip_probabilities_are_applied_to_exit_channels(self):
@@ -42,8 +62,8 @@ class RashbaSurfaceTestCase(unittest.TestCase):
         )
         frame = result.frame
 
-        np.testing.assert_allclose(frame["t_plus_sq"], frame["transmission_up"] * 0.375, atol=1e-12)
-        np.testing.assert_allclose(frame["t_minus_sq"], frame["transmission_down"] * 0.625, atol=1e-12)
+        np.testing.assert_allclose(frame["t_plus_sq"], frame["transmission_up"] * 0.75, atol=1e-12)
+        np.testing.assert_allclose(frame["t_minus_sq"], frame["transmission_down"], atol=1e-12)
         self.assertTrue(np.all(frame["polarization"].to_numpy(dtype=float) < 0.0))
 
     def test_volume_flip_probabilities_keep_exit_channels_bounded(self):

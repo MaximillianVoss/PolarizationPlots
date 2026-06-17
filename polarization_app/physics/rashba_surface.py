@@ -82,14 +82,14 @@ def compute_rashba_surface_frame(
 
     reflection_up = _reflection_probability(ky_sq, ky_prime_sq_up, thickness_bohr)
     reflection_down = _reflection_probability(ky_sq, ky_prime_sq_down, thickness_bohr)
-    transmission_factor = np.sqrt(np.clip((energies_au - surface_potential_au) / energies_au, 0.0, None))
+    transmission_factor = np.clip((energies_au - surface_potential_au) / energies_au, 0.0, None)
     transmission_up = np.clip(transmission_factor * (1.0 - reflection_up), 0.0, 1.0)
     transmission_down = np.clip(transmission_factor * (1.0 - reflection_down), 0.0, 1.0)
 
     ver_up_to_down_arr = _probability_array(ver_up_to_down, len(energies_eV), "Ver(+→-)")
     ver_down_to_up_arr = _probability_array(ver_down_to_up, len(energies_eV), "Ver(-→+)")
-    exit_up_weight = 0.5 * (1.0 - ver_up_to_down_arr + ver_down_to_up_arr)
-    exit_down_weight = 0.5 * (1.0 - ver_down_to_up_arr + ver_up_to_down_arr)
+    exit_up_weight = np.clip(1.0 - ver_up_to_down_arr + ver_down_to_up_arr, 0.0, 1.0)
+    exit_down_weight = np.clip(1.0 - ver_down_to_up_arr + ver_up_to_down_arr, 0.0, 1.0)
     t_plus_sq = transmission_up * exit_up_weight
     t_minus_sq = transmission_down * exit_down_weight
     denominator = t_plus_sq + t_minus_sq

@@ -125,18 +125,50 @@ def draw_boundary_utility_plots(
 
 def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, x_column: str, x_label: str) -> None:
     x_values = frame[x_column].to_numpy(dtype=float)
+    valid_mask = np.isfinite(x_values)
+    if "converged" in frame:
+        valid_mask &= frame["converged"].fillna(False).astype(bool).to_numpy()
+    unstable_mask = np.zeros_like(x_values, dtype=bool)
+    if "convergence_unstable" in frame:
+        unstable_mask = frame["convergence_unstable"].fillna(False).astype(bool).to_numpy()
+
+    def result_values(column: str) -> np.ndarray:
+        values = frame[column].to_numpy(dtype=float)
+        return np.where(valid_mask, values, np.nan)
+
+    def highlight_unstable(axis) -> None:
+        unstable_x = x_values[unstable_mask & np.isfinite(x_values)]
+        if unstable_x.size == 0:
+            return
+        finite_x = x_values[np.isfinite(x_values)]
+        if finite_x.size > 1:
+            x_width = float(np.nanmedian(np.abs(np.diff(np.sort(finite_x))))) * 0.5
+        else:
+            x_width = 0.5
+        x_width = max(x_width, 1e-12)
+        for index, value in enumerate(unstable_x):
+            axis.axvspan(
+                value - x_width,
+                value + x_width,
+                color="#fecaca",
+                alpha=0.35,
+                linewidth=0,
+                label="неустойчиво по dθ" if index == 0 else None,
+                zorder=0,
+            )
 
     phase_axis.clear()
+    highlight_unstable(phase_axis)
     phase_axis.set_title("Вероятность изменения спина после СОВ")
     phase_axis.plot(
         x_values,
-        frame["p_flip_initial_up"].to_numpy(dtype=float),
+        result_values("p_flip_initial_up"),
         label="начальный ↑: ↑→↓",
         color="#2f5597",
     )
     phase_axis.plot(
         x_values,
-        frame["p_flip_initial_down"].to_numpy(dtype=float),
+        result_values("p_flip_initial_down"),
         label="начальный ↓: ↓→↑",
         color="#cf2f2f",
     )
@@ -147,11 +179,12 @@ def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, 
     phase_axis.legend()
 
     angle_axis.clear()
+    highlight_unstable(angle_axis)
     angle_axis.set_title("Углы после взаимодействия")
-    angle_axis.plot(x_values, frame["theta_deg"].to_numpy(dtype=float), label="θ, угол интегрирования", color="#2f7f3f")
+    angle_axis.plot(x_values, result_values("theta_deg"), label="θ, угол интегрирования", color="#2f7f3f")
     angle_axis.plot(
         x_values,
-        frame["trajectory_phi_deg"].to_numpy(dtype=float),
+        result_values("trajectory_phi_deg"),
         label="φ, угол траектории после взаимодействия",
         color="#cf2f2f",
     )
@@ -161,10 +194,11 @@ def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, 
     angle_axis.legend()
 
     diagnostic_axis.clear()
-    diagnostic_axis.set_title("r_min и внутренние шаги интегрирования")
+    highlight_unstable(diagnostic_axis)
+    diagnostic_axis.set_title("r_min и панели интегрирования")
     diagnostic_axis.plot(
         x_values,
-        frame["r_min_ang"].to_numpy(dtype=float),
+        result_values("r_min_ang"),
         label="r_min, минимальное сближение",
         color="#8a5a00",
     )
@@ -181,11 +215,11 @@ def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, 
     steps_axis.plot(
         x_values,
         frame["steps"].to_numpy(dtype=float),
-        label="steps, внутренние шаги интегрирования",
+        label="steps, панели квадратуры",
         color="#6b4fa3",
         linestyle="--",
     )
-    steps_axis.set_ylabel("внутренние шаги")
+    steps_axis.set_ylabel("панели квадратуры")
 
     handles, labels = diagnostic_axis.get_legend_handles_labels()
     step_handles, step_labels = steps_axis.get_legend_handles_labels()
@@ -204,6 +238,19 @@ def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, 
                 color="#9a3412",
                 bbox={"facecolor": "#fff7ed", "edgecolor": "#fdba74", "pad": 4},
             )
+    unstable_count = int(unstable_mask.sum())
+    if unstable_count:
+        diagnostic_axis.text(
+            0.02,
+            0.78,
+            f"Неустойчиво по dθ: {unstable_count}.",
+            transform=diagnostic_axis.transAxes,
+            va="top",
+            ha="left",
+            fontsize=9,
+            color="#991b1b",
+            bbox={"facecolor": "#fef2f2", "edgecolor": "#fca5a5", "pad": 4},
+        )
 
 
 def draw_rashba_surface_plots(transmission_axis, polarization_axis, frame) -> None:

@@ -1,10 +1,14 @@
 import unittest
 import tkinter as tk
+from types import SimpleNamespace
+
+import numpy as np
+import pandas as pd
 
 from polarization_app.application.formulas import FORMULA_LABELS, FORMULA_NEW
 from polarization_app.application.trajectory import TRAJECTORY_SWEEP_ANGLE_STEP, TRAJECTORY_SWEEP_ENERGY, TRAJECTORY_SWEEP_LABELS
 from polarization_app.physics.compute_backend import cpu_worker_count
-from polarization_app.gui.app import App
+from polarization_app.gui.app import App, RASHBA_SOURCE_TRAJECTORY
 from polarization_app.physics.phase_integrals import DEFAULT_PHASE_C1, DEFAULT_PHASE_C2
 from polarization_app.physics.trajectory_phase import DEFAULT_THOMAS_FERMI_B_BOHR
 
@@ -158,6 +162,24 @@ class AppBindingsTestCase(unittest.TestCase):
         self.assertEqual(len(self.app.right_scheduled_calls), right_before)
         self.assertEqual(len(self.app.trajectory_scheduled_calls), trajectory_before)
         self.assertEqual(self.app.rashba_update_calls, 1)
+
+    def test_rashba_trajectory_source_ignores_non_converged_points(self):
+        self.app.rashba_source_label.set(RASHBA_SOURCE_TRAJECTORY)
+        self.app._latest_trajectory_payload = SimpleNamespace(
+            frame=pd.DataFrame(
+                {
+                    "energy_eV": [100.0, 200.0, 300.0],
+                    "p_flip_initial_up": [0.1, 0.99, 0.3],
+                    "p_flip_initial_down": [0.05, 0.98, 0.25],
+                    "converged": [True, False, True],
+                }
+            )
+        )
+
+        up, down = self.app._rashba_volume_flip_probabilities(np.asarray([100.0, 200.0, 300.0]))
+
+        np.testing.assert_allclose(up, [0.1, 0.2, 0.3])
+        np.testing.assert_allclose(down, [0.05, 0.15, 0.25])
 
     def test_fixed_angle_step_is_disabled_when_sweeping_angle_step(self):
         control_widgets = self.app._slider_controls["angle_step"]["widgets"]
