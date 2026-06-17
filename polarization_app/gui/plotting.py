@@ -6,6 +6,8 @@ import numpy as np
 from polarization_app.application.geometry import AtomSelection, GeometryContext
 from polarization_app.domain.lattice import LatticeSearchRegion, build_lattice_points, direction_from_spherical_angles
 from polarization_app.physics.boundary_reflection import BoundaryPointResult, BoundaryReflectionCurves
+from polarization_app.physics.phase_integrals import BOHR_TO_ANGSTROM
+from polarization_app.physics.trajectory_phase import DEFAULT_THOMAS_FERMI_B_BOHR
 
 
 @dataclass(frozen=True)
@@ -212,6 +214,7 @@ def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, 
         diagnostic_axis._trajectory_steps_axis = steps_axis
     else:
         steps_axis.clear()
+    steps_axis.set_visible(True)
     steps_axis.plot(
         x_values,
         frame["steps"].to_numpy(dtype=float),
@@ -251,6 +254,158 @@ def draw_trajectory_sweep_plots(phase_axis, angle_axis, diagnostic_axis, frame, 
             color="#991b1b",
             bbox={"facecolor": "#fef2f2", "edgecolor": "#fca5a5", "pad": 4},
         )
+
+
+def draw_trajectory_probability_by_rmin(phase_axis, angle_axis, diagnostic_axis, frame, sweep_x_label: str) -> None:
+    r_min_values = frame["r_min_ang"].to_numpy(dtype=float)
+    valid_mask = np.isfinite(r_min_values)
+    if "converged" in frame:
+        valid_mask &= frame["converged"].fillna(False).astype(bool).to_numpy()
+    valid_indices = np.flatnonzero(valid_mask)
+    if valid_indices.size:
+        valid_indices = valid_indices[np.argsort(r_min_values[valid_indices])]
+
+    unstable_mask = np.zeros_like(r_min_values, dtype=bool)
+    if "convergence_unstable" in frame:
+        unstable_mask = frame["convergence_unstable"].fillna(False).astype(bool).to_numpy()
+
+    x_values = r_min_values[valid_indices]
+
+    def result_values(column: str) -> np.ndarray:
+        return frame[column].to_numpy(dtype=float)[valid_indices]
+
+    def highlight_unstable(axis) -> None:
+        unstable_x = r_min_values[unstable_mask & np.isfinite(r_min_values)]
+        if unstable_x.size == 0:
+            return
+        finite_x = r_min_values[np.isfinite(r_min_values)]
+        if finite_x.size > 1:
+            x_width = float(np.nanmedian(np.abs(np.diff(np.sort(finite_x))))) * 0.5
+        else:
+            x_width = 0.01
+        x_width = max(x_width, 1e-12)
+        for index, value in enumerate(unstable_x):
+            axis.axvspan(
+                value - x_width,
+                value + x_width,
+                color="#fecaca",
+                alpha=0.35,
+                linewidth=0,
+                label="неустойчиво по dθ" if index == 0 else None,
+                zorder=0,
+            )
+
+    def add_screening_marker(axis) -> None:
+        radius_ang = _trajectory_thomas_fermi_radius_ang(frame)
+        if radius_ang is None:
+            return
+        axis.axvline(
+            radius_ang,
+            color="#595959",
+            linestyle=":",
+            linewidth=1.4,
+            label=f"r_TF=b·Z^(-1/3)={radius_ang:.4g} Å",
+        )
+
+    phase_axis.clear()
+    highlight_unstable(phase_axis)
+    add_screening_marker(phase_axis)
+    phase_axis.set_title("Вероятность изменения спина от минимального сближения")
+    phase_axis.plot(
+        x_values,
+        result_values("p_flip_initial_up"),
+        label="начальный ↑: ↑→↓",
+        color="#2f5597",
+    )
+    phase_axis.plot(
+        x_values,
+        result_values("p_flip_initial_down"),
+        label="начальный ↓: ↓→↑",
+        color="#cf2f2f",
+    )
+    phase_axis.set_xlabel("r_min, Å")
+    phase_axis.set_ylabel("P(изменение спина)")
+    phase_axis.set_ylim(-0.03, 1.03)
+    phase_axis.grid(True, which="both")
+    phase_axis.legend()
+
+    angle_axis.clear()
+    highlight_unstable(angle_axis)
+    add_screening_marker(angle_axis)
+    angle_axis.set_title("Связь минимального сближения с исходной осью")
+    angle_axis.plot(
+        x_values,
+        frame["sweep_value"].to_numpy(dtype=float)[valid_indices],
+        label=sweep_x_label,
+        color="#2f7f3f",
+    )
+    angle_axis.set_xlabel("r_min, Å")
+    angle_axis.set_ylabel(sweep_x_label)
+    angle_axis.grid(True, which="both")
+    angle_axis.legend()
+
+    diagnostic_axis.clear()
+    highlight_unstable(diagnostic_axis)
+    add_screening_marker(diagnostic_axis)
+    diagnostic_axis.set_title("Панели интегрирования относительно r_min")
+    diagnostic_axis.plot(
+        x_values,
+        result_values("steps"),
+        label="steps, панели квадратуры",
+        color="#6b4fa3",
+        linestyle="--",
+    )
+    diagnostic_axis.set_xlabel("r_min, Å")
+    diagnostic_axis.set_ylabel("панели квадратуры")
+    diagnostic_axis.grid(True, which="both")
+
+    steps_axis = getattr(diagnostic_axis, "_trajectory_steps_axis", None)
+    if steps_axis is not None:
+        steps_axis.clear()
+        steps_axis.set_visible(False)
+
+    handles, labels = diagnostic_axis.get_legend_handles_labels()
+    if handles:
+        diagnostic_axis.legend(handles, labels, loc="best")
+
+    if "converged" in frame:
+        failed_count = int((~frame["converged"].astype(bool)).sum())
+        if failed_count:
+            diagnostic_axis.text(
+                0.02,
+                0.95,
+                f"Ошибок в точках: {failed_count}. Подробности в сводке.",
+                transform=diagnostic_axis.transAxes,
+                va="top",
+                ha="left",
+                fontsize=9,
+                color="#9a3412",
+                bbox={"facecolor": "#fff7ed", "edgecolor": "#fdba74", "pad": 4},
+            )
+    unstable_count = int(unstable_mask.sum())
+    if unstable_count:
+        diagnostic_axis.text(
+            0.02,
+            0.78,
+            f"Неустойчиво по dθ: {unstable_count}.",
+            transform=diagnostic_axis.transAxes,
+            va="top",
+            ha="left",
+            fontsize=9,
+            color="#991b1b",
+            bbox={"facecolor": "#fef2f2", "edgecolor": "#fca5a5", "pad": 4},
+        )
+
+
+def _trajectory_thomas_fermi_radius_ang(frame) -> float | None:
+    if "atomic_number" not in frame:
+        return None
+    atomic_numbers = frame["atomic_number"].to_numpy(dtype=float)
+    atomic_numbers = atomic_numbers[np.isfinite(atomic_numbers) & (atomic_numbers > 0.0)]
+    if atomic_numbers.size == 0:
+        return None
+    z_value = float(atomic_numbers[0])
+    return DEFAULT_THOMAS_FERMI_B_BOHR * BOHR_TO_ANGSTROM / (z_value ** (1.0 / 3.0))
 
 
 def draw_rashba_surface_plots(transmission_axis, polarization_axis, frame) -> None:

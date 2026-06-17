@@ -23,7 +23,7 @@ from polarization_app.application.formulas import (
 )
 from polarization_app.application.geometry import GeometryContext, collect_atom_selection
 from polarization_app.application.rashba_export import export_rashba_surface_file
-from polarization_app.application.spectrum_export import export_spectrum_bundle
+from polarization_app.application.spectrum_export import export_spectrum_file
 from polarization_app.application.table_export import SUPPORTED_EXPORT_SUFFIXES
 from polarization_app.application.trajectory import (
     DEFAULT_PRECISE_TRAJECTORY_MAX_PHASE_STEP_RAD,
@@ -51,6 +51,7 @@ from polarization_app.gui.plotting import (
     draw_geometry_preview,
     draw_rashba_surface_plots,
     draw_spin_plots,
+    draw_trajectory_probability_by_rmin,
     draw_trajectory_sweep_plots,
     restore_view_limits,
     zoom_axis,
@@ -91,6 +92,8 @@ EXPORT_FILETYPES = [
     ("XML (*.xml)", "*.xml"),
     ("Все файлы", "*.*"),
 ]
+TRAJECTORY_PLOT_SWEEP = "sweep"
+TRAJECTORY_PLOT_RMIN = "r_min"
 
 
 def configure_logging() -> None:
@@ -255,6 +258,7 @@ class App(tk.Tk):
         self.trajectory_precise_mode = tk.BooleanVar(value=False)
         self.trajectory_convergence_check = tk.BooleanVar(value=False)
         self.trajectory_sweep_label = tk.StringVar(value=TRAJECTORY_SWEEP_LABELS[TRAJECTORY_SWEEP_ENERGY])
+        self.trajectory_plot_mode = tk.StringVar(value=TRAJECTORY_PLOT_SWEEP)
         self.trajectory_auto = self.auto
         self.trajectory_parallel_workers = tk.IntVar(value=cpu_worker_count())
         self.rashba_Emin = tk.DoubleVar(value=10.0)
@@ -1100,6 +1104,20 @@ class App(tk.Tk):
         zoom_bar = ttk.Frame(panel)
         zoom_bar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
         ttk.Label(zoom_bar, text="Колесо мыши масштабирует графики траекторного расчёта.").pack(side="left")
+        ttk.Radiobutton(
+            zoom_bar,
+            text="Основные графики",
+            value=TRAJECTORY_PLOT_SWEEP,
+            variable=self.trajectory_plot_mode,
+            command=self._redraw_trajectory_plots,
+        ).pack(side="left", padx=(12, 0))
+        ttk.Radiobutton(
+            zoom_bar,
+            text="P от r_min",
+            value=TRAJECTORY_PLOT_RMIN,
+            variable=self.trajectory_plot_mode,
+            command=self._redraw_trajectory_plots,
+        ).pack(side="left", padx=(8, 0))
         ttk.Button(zoom_bar, text="Сбросить масштаб", command=self._reset_trajectory_zoom).pack(side="right")
 
         self.trajectory_fig = Figure(figsize=(7.4, 6.4), dpi=100)
@@ -2410,17 +2428,36 @@ class App(tk.Tk):
         if next_request is not None:
             self._start_trajectory_update(next_request)
 
-    def _apply_trajectory_result(self, result: TrajectorySweepResult) -> None:
-        self._latest_trajectory_payload = result
+    def _redraw_trajectory_plots(self) -> None:
+        result = self._latest_trajectory_payload
+        if (
+            result is None
+            or self.trajectory_fig is None
+            or self.trajectory_canvas is None
+            or self.ax_trajectory_phase is None
+            or self.ax_trajectory_angle is None
+            or self.ax_trajectory_diagnostics is None
+        ):
+            return
+
         x_label = TRAJECTORY_AXIS_LABELS[result.request.sweep_mode]
-        draw_trajectory_sweep_plots(
-            self.ax_trajectory_phase,
-            self.ax_trajectory_angle,
-            self.ax_trajectory_diagnostics,
-            result.frame,
-            "sweep_value",
-            x_label,
-        )
+        if self.trajectory_plot_mode.get() == TRAJECTORY_PLOT_RMIN:
+            draw_trajectory_probability_by_rmin(
+                self.ax_trajectory_phase,
+                self.ax_trajectory_angle,
+                self.ax_trajectory_diagnostics,
+                result.frame,
+                x_label,
+            )
+        else:
+            draw_trajectory_sweep_plots(
+                self.ax_trajectory_phase,
+                self.ax_trajectory_angle,
+                self.ax_trajectory_diagnostics,
+                result.frame,
+                "sweep_value",
+                x_label,
+            )
         self.trajectory_fig.tight_layout()
         self._trajectory_view_limits = capture_view_limits(
             self.ax_trajectory_phase,
@@ -2428,6 +2465,10 @@ class App(tk.Tk):
             self.ax_trajectory_diagnostics,
         )
         self.trajectory_canvas.draw_idle()
+
+    def _apply_trajectory_result(self, result: TrajectorySweepResult) -> None:
+        self._latest_trajectory_payload = result
+        self._redraw_trajectory_plots()
         self._set_text_output(self.trajectory_output, self._format_trajectory_summary(result))
         self._add_trajectory_runtime_hints(result)
         converged_count = int(result.frame["converged"].sum())
@@ -2631,30 +2672,19 @@ class App(tk.Tk):
             self._append_output("\n[Экспорт] Нет рассчитанного спектра для экспорта.\n")
             return
 
-        default_name = self._default_export_name(payload)
-        selected_path = filedialog.asksaveasfilename(
-            parent=self,
+        selected_path = self._ask_export_file_path(
             title="Экспорт спектра",
-            initialfile=default_name,
-            defaultextension=".json",
-            filetypes=[
-                ("JSON", "*.json"),
-                ("Excel", "*.xlsx"),
-                ("XML", "*.xml"),
-                ("Все файлы", "*.*"),
-            ],
+            initialfile=self._default_export_name(payload),
         )
-        if not selected_path:
+        if selected_path is None:
             return
 
-        selected = Path(selected_path)
-        base_path = selected.parent / selected.stem if selected.suffix else selected
         result = payload.result
         energies_eV = result.grid["E_eV"].to_numpy(dtype=float)
 
         try:
-            exported = export_spectrum_bundle(
-                base_path=base_path,
+            exported = export_spectrum_file(
+                path=selected_path,
                 energies_eV=energies_eV,
                 spin_curves=result.spin_curves,
                 metadata=self._build_spectrum_export_metadata(payload),
@@ -2665,9 +2695,8 @@ class App(tk.Tk):
             self._append_output(f"\n[Экспорт] Ошибка: {ex}\n")
             return
 
-        exported_summary = ", ".join(f"{kind.upper()}={path.name}" for kind, path in exported.items())
-        self.status_text.set(f"Экспорт выполнен: {base_path.stem}")
-        self._append_output(f"\n[Экспорт] {exported_summary}\n")
+        self.status_text.set(f"Экспорт спектра выполнен: {exported.name}")
+        self._append_output(f"\n[Экспорт] {exported.name}\n")
 
     def _default_export_name(self, payload: PlotComputationResult) -> str:
         variant = payload.request.formula_variant.replace("_", "-")

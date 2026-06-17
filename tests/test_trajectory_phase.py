@@ -47,6 +47,20 @@ class TrajectoryPhaseTestCase(unittest.TestCase):
         self.assertTrue(np.all(np.isfinite(derivative_values)))
         self.assertTrue(np.all(chi_values >= 0.0))
 
+    def test_thomas_fermi_spline_is_smooth_at_table_nodes(self):
+        x0 = 1.2
+        eps = 1e-4
+
+        center = float(spline_thomas_fermi_chi(np.array([x0]))[0])
+        left = float(spline_thomas_fermi_chi(np.array([x0 - eps]))[0])
+        right = float(spline_thomas_fermi_chi(np.array([x0 + eps]))[0])
+        left_slope = (center - left) / eps
+        right_slope = (right - center) / eps
+        derivative = float(spline_thomas_fermi_chi_derivative(np.array([x0]))[0])
+
+        self.assertAlmostEqual(left_slope, right_slope, delta=1e-3)
+        self.assertAlmostEqual(derivative, 0.5 * (left_slope + right_slope), delta=1e-3)
+
     def test_energy_to_speed_uses_mass_in_amu(self):
         electron_speed = float(energy_eV_to_speed_mps_for_mass(100.0, ELECTRON_MASS_AMU))
         heavier_speed = float(energy_eV_to_speed_mps_for_mass(100.0, ELECTRON_MASS_AMU * 4.0))

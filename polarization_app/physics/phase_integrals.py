@@ -10,12 +10,6 @@ import pandas as pd
 
 from polarization_app.physics.compute_backend import cpu_worker_count
 
-try:
-    from scipy.interpolate import CubicSpline
-except ImportError:  # pragma: no cover - exercised only in lean runtime environments
-    CubicSpline = None
-
-
 logger = logging.getLogger(__name__)
 
 ELECTRON_CHARGE = 1.602176634e-19
@@ -41,8 +35,78 @@ _THOMAS_FERMI_Y = np.array([
 
 ChiFunction = Callable[[np.ndarray, dict[str, float] | None], np.ndarray]
 
-_THOMAS_FERMI_SPLINE = CubicSpline(_THOMAS_FERMI_X, _THOMAS_FERMI_Y, bc_type="natural") if CubicSpline is not None else None
-_THOMAS_FERMI_SPLINE_DERIVATIVE = _THOMAS_FERMI_SPLINE.derivative() if _THOMAS_FERMI_SPLINE is not None else None
+class _NaturalCubicSpline:
+    def __init__(self, x: np.ndarray, y: np.ndarray) -> None:
+        self.x = np.asarray(x, dtype=float)
+        self.y = np.asarray(y, dtype=float)
+        if self.x.ndim != 1 or self.y.ndim != 1 or self.x.size != self.y.size:
+            raise ValueError("Spline input arrays must be one-dimensional and have equal length.")
+        if self.x.size < 2 or np.any(np.diff(self.x) <= 0.0):
+            raise ValueError("Spline x values must be strictly increasing.")
+        self._second_derivatives = self._compute_second_derivatives()
+
+    def _compute_second_derivatives(self) -> np.ndarray:
+        n = self.x.size
+        if n == 2:
+            return np.zeros(n, dtype=float)
+
+        h = np.diff(self.x)
+        system = np.zeros((n - 2, n - 2), dtype=float)
+        rhs = np.zeros(n - 2, dtype=float)
+        for row in range(n - 2):
+            i = row + 1
+            if row > 0:
+                system[row, row - 1] = h[i - 1]
+            system[row, row] = 2.0 * (h[i - 1] + h[i])
+            if row < n - 3:
+                system[row, row + 1] = h[i]
+            rhs[row] = 6.0 * ((self.y[i + 1] - self.y[i]) / h[i] - (self.y[i] - self.y[i - 1]) / h[i - 1])
+
+        second = np.zeros(n, dtype=float)
+        second[1:-1] = np.linalg.solve(system, rhs)
+        return second
+
+    def __call__(self, values: np.ndarray | float) -> np.ndarray:
+        value_array = np.asarray(values, dtype=float)
+        flat = value_array.reshape(-1)
+        result = self._evaluate_flat(flat, derivative=False)
+        return result.reshape(value_array.shape)
+
+    def derivative(self) -> "_NaturalCubicSplineDerivative":
+        return _NaturalCubicSplineDerivative(self)
+
+    def _evaluate_flat(self, values: np.ndarray, *, derivative: bool) -> np.ndarray:
+        indices = np.searchsorted(self.x, values, side="right") - 1
+        indices = np.clip(indices, 0, self.x.size - 2)
+
+        x0 = self.x[indices]
+        x1 = self.x[indices + 1]
+        y0 = self.y[indices]
+        y1 = self.y[indices + 1]
+        m0 = self._second_derivatives[indices]
+        m1 = self._second_derivatives[indices + 1]
+        h = x1 - x0
+        a = (x1 - values) / h
+        b = (values - x0) / h
+
+        if derivative:
+            return (y1 - y0) / h + h * ((1.0 - 3.0 * a * a) * m0 + (3.0 * b * b - 1.0) * m1) / 6.0
+        return a * y0 + b * y1 + ((a * a * a - a) * m0 + (b * b * b - b) * m1) * h * h / 6.0
+
+
+class _NaturalCubicSplineDerivative:
+    def __init__(self, spline: _NaturalCubicSpline) -> None:
+        self._spline = spline
+
+    def __call__(self, values: np.ndarray | float) -> np.ndarray:
+        value_array = np.asarray(values, dtype=float)
+        flat = value_array.reshape(-1)
+        result = self._spline._evaluate_flat(flat, derivative=True)
+        return result.reshape(value_array.shape)
+
+
+_THOMAS_FERMI_SPLINE = _NaturalCubicSpline(_THOMAS_FERMI_X, _THOMAS_FERMI_Y)
+_THOMAS_FERMI_SPLINE_DERIVATIVE = _THOMAS_FERMI_SPLINE.derivative()
 
 
 def energy_to_speed_mps(energy_eV: np.ndarray) -> np.ndarray:
@@ -64,9 +128,6 @@ def interpolate_thomas_fermi_chi(x: np.ndarray, params: dict[str, float] | None 
 def spline_thomas_fermi_chi(x: np.ndarray, params: dict[str, float] | None = None) -> np.ndarray:
     del params
     x = np.asarray(x, dtype=float)
-    if _THOMAS_FERMI_SPLINE is None:
-        values = interpolate_thomas_fermi_chi(x)
-        return np.where(x > _THOMAS_FERMI_X[-1], 0.0, values)
     x_clipped = np.clip(x, _THOMAS_FERMI_X[0], _THOMAS_FERMI_X[-1])
     values = np.asarray(_THOMAS_FERMI_SPLINE(x_clipped), dtype=float)
     values = np.where(x > _THOMAS_FERMI_X[-1], 0.0, values)
@@ -78,19 +139,12 @@ def scalar_spline_thomas_fermi_chi(x: float) -> float:
     if x_value > float(_THOMAS_FERMI_X[-1]):
         return 0.0
     x_clipped = min(max(x_value, float(_THOMAS_FERMI_X[0])), float(_THOMAS_FERMI_X[-1]))
-    if _THOMAS_FERMI_SPLINE is None:
-        return float(np.interp(x_clipped, _THOMAS_FERMI_X, _THOMAS_FERMI_Y))
     return max(float(_THOMAS_FERMI_SPLINE(x_clipped)), 0.0)
 
 
 def spline_thomas_fermi_chi_derivative(x: np.ndarray, params: dict[str, float] | None = None) -> np.ndarray:
     del params
     x = np.asarray(x, dtype=float)
-    if _THOMAS_FERMI_SPLINE_DERIVATIVE is None:
-        x_clipped = np.clip(x, _THOMAS_FERMI_X[0], _THOMAS_FERMI_X[-1])
-        values = np.gradient(_THOMAS_FERMI_Y, _THOMAS_FERMI_X)
-        derivatives = np.interp(x_clipped, _THOMAS_FERMI_X, values, left=values[0], right=0.0)
-        return np.where(x > _THOMAS_FERMI_X[-1], 0.0, derivatives)
     x_clipped = np.clip(x, _THOMAS_FERMI_X[0], _THOMAS_FERMI_X[-1])
     values = np.asarray(_THOMAS_FERMI_SPLINE_DERIVATIVE(x_clipped), dtype=float)
     return np.where(x > _THOMAS_FERMI_X[-1], 0.0, values)
@@ -101,9 +155,6 @@ def scalar_spline_thomas_fermi_chi_derivative(x: float) -> float:
     if x_value > float(_THOMAS_FERMI_X[-1]):
         return 0.0
     x_clipped = min(max(x_value, float(_THOMAS_FERMI_X[0])), float(_THOMAS_FERMI_X[-1]))
-    if _THOMAS_FERMI_SPLINE_DERIVATIVE is None:
-        derivatives = np.gradient(_THOMAS_FERMI_Y, _THOMAS_FERMI_X)
-        return float(np.interp(x_clipped, _THOMAS_FERMI_X, derivatives, left=derivatives[0], right=0.0))
     return float(_THOMAS_FERMI_SPLINE_DERIVATIVE(x_clipped))
 
 

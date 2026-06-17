@@ -10,6 +10,7 @@ import numpy as np
 from polarization_app.application.spectrum_export import (
     build_spectrum_export_frame,
     export_spectrum_bundle,
+    export_spectrum_file,
 )
 
 
@@ -90,6 +91,57 @@ class SpectrumExportTestCase(unittest.TestCase):
             self.assertIn(">20<", sheet1)
             self.assertIn("formula_label", sheet2)
             self.assertIn("Тестовая модель", sheet2)
+
+    def test_export_file_writes_only_selected_extension(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exported = export_spectrum_file(
+                path=Path(tmpdir) / "spectrum.xlsx",
+                energies_eV=np.array([10.0, 20.0]),
+                spin_curves={
+                    "sum_check_up": np.array([1.0, 1.0]),
+                    "sum_check_dn": np.array([1.0, 1.0]),
+                    "spin_mean_up": np.array([0.25, 0.5]),
+                    "spin_mean_dn": np.array([-0.25, -0.5]),
+                },
+                metadata={"formula_label": "Тестовая модель"},
+            )
+
+            self.assertEqual(exported.name, "spectrum.xlsx")
+            self.assertTrue(exported.exists())
+            self.assertFalse((Path(tmpdir) / "spectrum.json").exists())
+            self.assertFalse((Path(tmpdir) / "spectrum.xml").exists())
+
+    def test_export_non_finite_values_without_nan_literals(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exported = export_spectrum_bundle(
+                base_path=Path(tmpdir) / "spectrum_export",
+                energies_eV=np.array([10.0, np.nan, np.inf]),
+                spin_curves={
+                    "sum_check_up": np.array([1.0, np.nan, np.inf]),
+                    "sum_check_dn": np.array([1.0, -np.inf, 1.0]),
+                    "spin_mean_up": np.array([0.25, np.nan, 0.5]),
+                    "spin_mean_dn": np.array([-0.25, -0.5, np.inf]),
+                },
+                metadata={
+                    "formula_label": "Тестовая модель",
+                    "bad_value": np.nan,
+                },
+            )
+
+            json_payload = json.loads(exported["json"].read_text(encoding="utf-8"))
+            self.assertIsNone(json_payload["rows"][1]["energy_eV"])
+            self.assertIsNone(json_payload["metadata"]["bad_value"])
+
+            xml_text = exported["xml"].read_text(encoding="utf-8").lower()
+            self.assertNotIn(">nan<", xml_text)
+            self.assertNotIn(">inf<", xml_text)
+
+            with zipfile.ZipFile(exported["xlsx"]) as archive:
+                sheet_xml = archive.read("xl/worksheets/sheet1.xml").decode("utf-8").lower()
+                metadata_xml = archive.read("xl/worksheets/sheet2.xml").decode("utf-8").lower()
+            self.assertNotIn(">nan<", sheet_xml)
+            self.assertNotIn(">inf<", sheet_xml)
+            self.assertNotIn(">nan<", metadata_xml)
 
 
 if __name__ == "__main__":
