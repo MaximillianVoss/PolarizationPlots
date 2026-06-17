@@ -1447,7 +1447,8 @@ class App(tk.Tk):
         label_widget.grid(row=0, column=0, sticky="w")
         self._attach_tooltip(label_widget, description)
 
-        value_widget = ttk.Label(frame, text=f"{float(value):.6g} (константа)", foreground="#555")
+        value_text = f"{float(value):.8f}".rstrip("0").rstrip(".")
+        value_widget = ttk.Label(frame, text=f"{value_text} (константа)", foreground="#555")
         value_widget.grid(row=0, column=1, sticky="e")
         self._attach_tooltip(value_widget, description)
 

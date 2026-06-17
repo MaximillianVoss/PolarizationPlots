@@ -238,6 +238,8 @@ class AppBindingsTestCase(unittest.TestCase):
 
         self.assertNotIn("c1", labels)
         self.assertNotIn("c2", labels)
+        self.assertAlmostEqual(DEFAULT_PHASE_C1, 0.00001331)
+        self.assertAlmostEqual(DEFAULT_PHASE_C2, 1.2004)
         self.assertAlmostEqual(request.c1, DEFAULT_PHASE_C1)
         self.assertAlmostEqual(request.c2, DEFAULT_PHASE_C2)
 
