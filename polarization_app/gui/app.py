@@ -255,7 +255,7 @@ class App(tk.Tk):
         self.trajectory_precise_mode = tk.BooleanVar(value=False)
         self.trajectory_convergence_check = tk.BooleanVar(value=False)
         self.trajectory_sweep_label = tk.StringVar(value=TRAJECTORY_SWEEP_LABELS[TRAJECTORY_SWEEP_ENERGY])
-        self.trajectory_auto = tk.BooleanVar(value=False)
+        self.trajectory_auto = self.auto
         self.trajectory_parallel_workers = tk.IntVar(value=cpu_worker_count())
         self.rashba_Emin = tk.DoubleVar(value=10.0)
         self.rashba_Emax = tk.DoubleVar(value=1000.0)
@@ -321,6 +321,7 @@ class App(tk.Tk):
         self._trajectory_error_labels: dict[str, ttk.Label] = {}
         self._closing = False
         self._geometry_change_in_progress = False
+        self._boundary_update_in_progress = False
 
     def _build_layout(self) -> None:
         self.columnconfigure(0, weight=1)
@@ -505,9 +506,25 @@ class App(tk.Tk):
         self.n_auto_label.grid(row=current_row, column=0, sticky="w", pady=(2, 0))
         current_row += 1
 
-        ttk.Button(section, text="Обновить атомы и матрицы", command=self.update_output_left).grid(
+        self._add_auto_recalc_checkbox(section, current_row, columnspan=1)
+        current_row += 1
+
+        ttk.Button(section, text="Рассчитать", command=self.update_output_left).grid(
             row=current_row, column=0, sticky="w", pady=(6, 0)
         )
+
+    def _add_auto_recalc_checkbox(self, parent, row: int, *, columnspan: int = 2, pady=(6, 0)) -> ttk.Checkbutton:
+        check = ttk.Checkbutton(
+            parent,
+            text="Автопересчёт после изменения параметров",
+            variable=self.auto,
+        )
+        check.grid(row=row, column=0, columnspan=columnspan, sticky="w", pady=pady)
+        self._attach_tooltip(
+            check,
+            "Общий флаг для всех вкладок: если включено, изменение параметров запускает пересчёт.",
+        )
+        return check
 
     def _build_interaction_section(self, parent, row: int) -> None:
         section = ttk.LabelFrame(parent, text="Параметры взаимодействия и интегрирования", padding=10)
@@ -560,9 +577,7 @@ class App(tk.Tk):
         )
         current_row += 1
 
-        ttk.Checkbutton(section, text="Автопересчёт после изменения параметров", variable=self.auto).grid(
-            row=current_row, column=0, columnspan=2, sticky="w", pady=(6, 0)
-        )
+        self._add_auto_recalc_checkbox(section, current_row, columnspan=2)
         current_row += 1
 
         ttk.Checkbutton(
@@ -580,7 +595,7 @@ class App(tk.Tk):
 
         actions = ttk.Frame(section)
         actions.grid(row=current_row, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        ttk.Button(actions, text="Построить графики", command=self.update_output_right).pack(side="left")
+        ttk.Button(actions, text="Рассчитать", command=self.update_output_right).pack(side="left")
         ttk.Button(actions, text="Экспорт JSON/XML/XLSX", command=self._export_spectrum_data).pack(side="left", padx=(8, 0))
         ttk.Label(
             actions,
@@ -661,7 +676,10 @@ class App(tk.Tk):
             resolution=1,
         ); current_row += 1
 
-        ttk.Button(section, text="Обновить утилиту", command=self._update_boundary_utility).grid(
+        self._add_auto_recalc_checkbox(section, current_row, columnspan=1)
+        current_row += 1
+
+        ttk.Button(section, text="Рассчитать", command=self._update_boundary_utility).grid(
             row=current_row, column=0, sticky="w", pady=(8, 0)
         )
 
@@ -709,13 +727,7 @@ class App(tk.Tk):
         ttk.Button(actions, text="Экспорт JSON/XML/XLSX", command=self._export_trajectory_data).pack(side="left", padx=(8, 0))
         current_row += 1
 
-        auto_check = ttk.Checkbutton(
-            section,
-            text="Автопересчёт после изменения параметров",
-            variable=self.trajectory_auto,
-        )
-        auto_check.grid(row=current_row, column=0, columnspan=2, sticky="w", pady=(0, 4))
-        self._attach_tooltip(auto_check, "Если включено, расчёт запускается автоматически после изменения параметров.")
+        self._add_auto_recalc_checkbox(section, current_row, columnspan=2, pady=(0, 4))
         current_row += 1
 
         self._make_slider(
@@ -975,6 +987,9 @@ class App(tk.Tk):
         actions.grid(row=current_row, column=0, columnspan=2, sticky="ew", pady=(8, 6))
         ttk.Button(actions, text="Рассчитать", command=self._update_rashba_surface).pack(side="left")
         ttk.Button(actions, text="Экспорт JSON/XML/XLSX", command=self._export_rashba_data).pack(side="left", padx=(8, 0))
+        current_row += 1
+
+        self._add_auto_recalc_checkbox(section, current_row, columnspan=2)
         current_row += 1
 
         self._make_slider(
@@ -1252,7 +1267,7 @@ class App(tk.Tk):
             self.boundary_Emax,
             self.boundary_Npts,
         ):
-            variable.trace_add("write", lambda *_: self._update_boundary_utility())
+            variable.trace_add("write", lambda *_: self._update_boundary_utility_if_auto())
 
         for variable in (
             self.trajectory_Z,
@@ -1278,8 +1293,6 @@ class App(tk.Tk):
         ):
             variable.trace_add("write", lambda *_: self._on_trajectory_inputs_changed())
 
-        self.trajectory_auto.trace_add("write", lambda *_: self._on_trajectory_auto_toggle())
-
         for variable in (
             self.rashba_Emin,
             self.rashba_Emax,
@@ -1290,7 +1303,7 @@ class App(tk.Tk):
             self.rashba_surface_potential,
             self.rashba_source_label,
         ):
-            variable.trace_add("write", lambda *_: self._update_rashba_surface())
+            variable.trace_add("write", lambda *_: self._update_rashba_surface_if_auto())
 
     def _attach_tooltip(self, widget, text: str):
         if text:
@@ -1866,6 +1879,9 @@ class App(tk.Tk):
         if self.auto.get():
             self._schedule_left_update(delay_ms=75)
             self._schedule_right_update(delay_ms=150)
+            self._update_boundary_utility_if_auto()
+            self._on_trajectory_auto_toggle()
+            self._update_rashba_surface_if_auto()
         else:
             if self._scheduled_left_after is not None:
                 self.after_cancel(self._scheduled_left_after)
@@ -1873,6 +1889,9 @@ class App(tk.Tk):
             if self._scheduled_right_after is not None:
                 self.after_cancel(self._scheduled_right_after)
                 self._scheduled_right_after = None
+            if self._scheduled_trajectory_after is not None:
+                self.after_cancel(self._scheduled_trajectory_after)
+                self._scheduled_trajectory_after = None
 
     def _on_trajectory_inputs_changed(self) -> None:
         self._update_trajectory_control_states()
@@ -1951,6 +1970,14 @@ class App(tk.Tk):
     def _schedule_right_update_if_auto(self) -> None:
         if self.auto.get():
             self._schedule_right_update(delay_ms=250)
+
+    def _update_boundary_utility_if_auto(self) -> None:
+        if self.auto.get() and not self._boundary_update_in_progress:
+            self._update_boundary_utility()
+
+    def _update_rashba_surface_if_auto(self) -> None:
+        if self.auto.get():
+            self._update_rashba_surface()
 
     def _schedule_left_update(self, delay_ms: int = 0) -> None:
         if self._scheduled_left_after is not None:
@@ -2260,8 +2287,11 @@ class App(tk.Tk):
             return
 
         if self.boundary_energy_point.get() != point_energy:
-            self.boundary_energy_point.set(point_energy)
-            return
+            self._boundary_update_in_progress = True
+            try:
+                self.boundary_energy_point.set(point_energy)
+            finally:
+                self._boundary_update_in_progress = False
 
         draw_boundary_utility_plots(self.ax_boundary_reflection, self.ax_boundary_angle, curves, point_result)
         self.boundary_fig.tight_layout()

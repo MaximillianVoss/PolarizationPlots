@@ -20,6 +20,7 @@ class AppBindingProbe(App):
         self.right_scheduled_calls: list[int] = []
         self.trajectory_scheduled_calls: list[int] = []
         self.trajectory_start_calls = 0
+        self.boundary_update_calls = 0
         self.rashba_update_calls = 0
         super().__init__()
         self.withdraw()
@@ -28,6 +29,7 @@ class AppBindingProbe(App):
         self.right_scheduled_calls.clear()
         self.trajectory_scheduled_calls.clear()
         self.trajectory_start_calls = 0
+        self.boundary_update_calls = 0
         self.rashba_update_calls = 0
 
     def update_output_left(self) -> None:
@@ -44,6 +46,9 @@ class AppBindingProbe(App):
 
     def _start_trajectory_update(self, request) -> None:
         self.trajectory_start_calls += 1
+
+    def _update_boundary_utility(self) -> None:
+        self.boundary_update_calls += 1
 
     def _update_rashba_surface(self) -> None:
         self.rashba_update_calls += 1
@@ -121,6 +126,14 @@ class AppBindingsTestCase(unittest.TestCase):
                 action()
                 self.assertEqual(len(self.app.left_scheduled_calls), left_before)
                 self.assertEqual(len(self.app.right_scheduled_calls), right_before)
+                self.assertGreaterEqual(self.app.boundary_update_calls, 1)
+
+    def test_auto_flag_is_shared_with_trajectory_tab(self):
+        self.assertIs(self.app.trajectory_auto, self.app.auto)
+
+        self.app.auto.set(False)
+
+        self.assertFalse(self.app.trajectory_auto.get())
 
     def test_trajectory_auto_schedules_only_trajectory_recalc(self):
         self.app.trajectory_auto.set(True)
@@ -162,6 +175,20 @@ class AppBindingsTestCase(unittest.TestCase):
         self.assertEqual(len(self.app.right_scheduled_calls), right_before)
         self.assertEqual(len(self.app.trajectory_scheduled_calls), trajectory_before)
         self.assertEqual(self.app.rashba_update_calls, 1)
+
+    def test_auto_disabled_blocks_boundary_trajectory_and_rashba_recalc(self):
+        self.app.auto.set(False)
+        self.app.boundary_update_calls = 0
+        self.app.trajectory_scheduled_calls.clear()
+        self.app.rashba_update_calls = 0
+
+        self.app.boundary_alpha_deg.set(self.app.boundary_alpha_deg.get() + 1.0)
+        self.app.trajectory_energy.set(self.app.trajectory_energy.get() + 10.0)
+        self.app.rashba_alpha.set(self.app.rashba_alpha.get() + 0.01)
+
+        self.assertEqual(self.app.boundary_update_calls, 0)
+        self.assertEqual(self.app.trajectory_scheduled_calls, [])
+        self.assertEqual(self.app.rashba_update_calls, 0)
 
     def test_rashba_trajectory_source_ignores_non_converged_points(self):
         self.app.rashba_source_label.set(RASHBA_SOURCE_TRAJECTORY)
