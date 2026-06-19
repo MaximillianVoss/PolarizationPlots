@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from polarization_app.application.rmin_analysis import compute_rmin_analysis_metrics, thomas_fermi_radius_ang_from_frame
 from polarization_app.application.geometry import AtomSelection, GeometryContext
 from polarization_app.domain.lattice import LatticeSearchRegion, build_lattice_points, direction_from_spherical_angles
 from polarization_app.physics.boundary_reflection import BoundaryPointResult, BoundaryReflectionCurves
@@ -397,15 +398,184 @@ def draw_trajectory_probability_by_rmin(phase_axis, angle_axis, diagnostic_axis,
         )
 
 
+def draw_rmin_analysis_plots(
+    probability_axis,
+    distribution_axis,
+    diagnostics_axis,
+    frame,
+    *,
+    show_tf: bool = True,
+    show_ba0: bool = False,
+    highlight_tf: bool = True,
+    show_unstable: bool = True,
+) -> None:
+    metrics = compute_rmin_analysis_metrics(frame)
+    r_min_values = frame["r_min_ang"].to_numpy(dtype=float) if "r_min_ang" in frame else np.array([], dtype=float)
+    valid_mask = np.isfinite(r_min_values)
+    if "converged" in frame and valid_mask.size:
+        valid_mask &= frame["converged"].fillna(False).astype(bool).to_numpy()
+    valid_indices = np.flatnonzero(valid_mask)
+    if valid_indices.size:
+        valid_indices = valid_indices[np.argsort(r_min_values[valid_indices])]
+
+    for axis in (probability_axis, distribution_axis, diagnostics_axis):
+        axis.clear()
+        axis.grid(True, which="both")
+
+    if valid_indices.size == 0:
+        probability_axis.set_title("P(изменение спина) от минимального расстояния сближения")
+        probability_axis.text(
+            0.5,
+            0.5,
+            "Нет успешных точек траекторного расчёта",
+            transform=probability_axis.transAxes,
+            ha="center",
+            va="center",
+            fontsize=11,
+        )
+        distribution_axis.set_title("Распределение точек относительно r_TF")
+        diagnostics_axis.set_title("Диагностика шагов интегрирования")
+        return
+
+    x_values = r_min_values[valid_indices]
+
+    def values(column: str) -> np.ndarray:
+        if column not in frame:
+            return np.full(valid_indices.size, np.nan, dtype=float)
+        return frame[column].to_numpy(dtype=float)[valid_indices]
+
+    p_up = values("p_flip_initial_up")
+    p_down = values("p_flip_initial_down")
+    probability_count = np.isfinite(p_up).astype(float) + np.isfinite(p_down).astype(float)
+    probability_sum = np.nan_to_num(p_up, nan=0.0) + np.nan_to_num(p_down, nan=0.0)
+    p_average = np.divide(
+        probability_sum,
+        probability_count,
+        out=np.full_like(probability_sum, np.nan, dtype=float),
+        where=probability_count > 0.0,
+    )
+
+    def add_tf_reference(axis, *, shade: bool = False) -> None:
+        x_low, x_high = float(np.nanmin(x_values)), float(np.nanmax(x_values))
+        if show_tf and metrics.r_tf_ang is not None:
+            if shade and highlight_tf:
+                shade_right = min(metrics.r_tf_ang, x_high)
+                if shade_right > x_low:
+                    axis.axvspan(x_low, shade_right, color="#dbeafe", alpha=0.45, linewidth=0, zorder=0)
+            axis.axvline(
+                metrics.r_tf_ang,
+                color="#2563eb",
+                linestyle="--",
+                linewidth=1.4,
+                label=f"r_TF={metrics.r_tf_ang:.4g} Å",
+                zorder=1,
+            )
+        if show_ba0:
+            ba0_ang = DEFAULT_THOMAS_FERMI_B_BOHR * BOHR_TO_ANGSTROM
+            if x_low <= ba0_ang <= x_high:
+                axis.axvline(
+                    ba0_ang,
+                    color="#f97316",
+                    linestyle=":",
+                    linewidth=1.2,
+                    label=f"b*a0={ba0_ang:.4g} Å",
+                    zorder=1,
+                )
+
+    def add_unstable_points(axis, y_values: np.ndarray | None = None) -> None:
+        if not show_unstable or "convergence_unstable" not in frame:
+            return
+        unstable_mask = frame["convergence_unstable"].fillna(False).astype(bool).to_numpy()[valid_indices]
+        if not np.any(unstable_mask):
+            return
+        if y_values is None:
+            y_values = np.zeros_like(x_values)
+        axis.scatter(
+            x_values[unstable_mask],
+            y_values[unstable_mask],
+            marker="x",
+            s=38,
+            color="#7f1d1d",
+            linewidths=1.4,
+            label="неустойчивые точки",
+            zorder=4,
+        )
+
+    probability_axis.set_title("P(изменение спина) от минимального расстояния сближения")
+    add_tf_reference(probability_axis, shade=True)
+    probability_axis.plot(
+        x_values,
+        p_up,
+        label="начальный ↑: ↑→↓",
+        color="#1f5fbf",
+        marker="o",
+        markersize=3,
+        linewidth=1.4,
+    )
+    probability_axis.plot(
+        x_values,
+        p_down,
+        label="начальный ↓: ↓→↑",
+        color="#e11d1d",
+        marker="o",
+        markersize=3,
+        linewidth=1.4,
+    )
+    probability_axis.plot(
+        x_values,
+        p_average,
+        label="модель (усреднённые)",
+        color="#262626",
+        linewidth=1.0,
+        alpha=0.65,
+    )
+    add_unstable_points(probability_axis, np.fmax(p_up, p_down))
+    probability_axis.set_xlabel("r_min, Å")
+    probability_axis.set_ylabel("P")
+    probability_axis.set_ylim(-0.03, 1.03)
+    probability_axis.legend(loc="best")
+
+    distribution_axis.set_title("Распределение точек относительно r_TF")
+    if metrics.r_tf_ang is not None:
+        ratios = x_values / metrics.r_tf_ang
+        inside = ratios <= 1.0
+        bins = min(max(int(np.sqrt(ratios.size) * 2), 8), 40)
+        if np.any(inside):
+            distribution_axis.hist(ratios[inside], bins=bins, color="#3b82f6", alpha=0.82, label="внутри r_TF")
+        if np.any(~inside):
+            distribution_axis.hist(ratios[~inside], bins=bins, color="#9ca3af", alpha=0.78, label="снаружи r_TF")
+        distribution_axis.axvline(1.0, color="#2563eb", linestyle="--", linewidth=1.2)
+        distribution_axis.set_xlabel("r_min / r_TF")
+        distribution_axis.set_ylabel("Кол-во точек")
+        distribution_axis.legend(loc="best")
+    else:
+        distribution_axis.text(
+            0.5,
+            0.5,
+            "r_TF не определён: нет Z",
+            transform=distribution_axis.transAxes,
+            ha="center",
+            va="center",
+        )
+
+    diagnostics_axis.set_title("Диагностика шагов интегрирования")
+    add_tf_reference(diagnostics_axis, shade=False)
+    diagnostics_axis.plot(
+        x_values,
+        values("steps"),
+        label="steps, внутренние шаги интегрирования",
+        color="#2563eb",
+        linestyle="--",
+        linewidth=1.2,
+    )
+    add_unstable_points(diagnostics_axis, values("steps"))
+    diagnostics_axis.set_xlabel("r_min, Å")
+    diagnostics_axis.set_ylabel("steps")
+    diagnostics_axis.legend(loc="best")
+
+
 def _trajectory_thomas_fermi_radius_ang(frame) -> float | None:
-    if "atomic_number" not in frame:
-        return None
-    atomic_numbers = frame["atomic_number"].to_numpy(dtype=float)
-    atomic_numbers = atomic_numbers[np.isfinite(atomic_numbers) & (atomic_numbers > 0.0)]
-    if atomic_numbers.size == 0:
-        return None
-    z_value = float(atomic_numbers[0])
-    return DEFAULT_THOMAS_FERMI_B_BOHR * BOHR_TO_ANGSTROM / (z_value ** (1.0 / 3.0))
+    return thomas_fermi_radius_ang_from_frame(frame)
 
 
 def draw_rashba_surface_plots(transmission_axis, polarization_axis, frame) -> None:
@@ -825,6 +995,9 @@ __all__ = [
     "draw_spin_plots",
     "draw_boundary_utility_plots",
     "draw_rashba_surface_plots",
+    "draw_rmin_analysis_plots",
+    "draw_trajectory_probability_by_rmin",
+    "draw_trajectory_sweep_plots",
     "build_geometry_preview_data",
     "draw_geometry_preview",
     "capture_view_limits",

@@ -4,11 +4,13 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
+from matplotlib.colors import to_hex
 
 from polarization_app.application.formulas import FORMULA_LABELS, FORMULA_NEW
 from polarization_app.application.trajectory import TRAJECTORY_SWEEP_ANGLE_STEP, TRAJECTORY_SWEEP_ENERGY, TRAJECTORY_SWEEP_LABELS
 from polarization_app.physics.compute_backend import cpu_worker_count
-from polarization_app.gui.app import App, RASHBA_SOURCE_TRAJECTORY
+from polarization_app.gui.app import APP_ICON_ICO, APP_ICON_PNG, App, RASHBA_SOURCE_TRAJECTORY
+from polarization_app.gui.theme import DARK_THEME, THEMES
 from polarization_app.physics.phase_integrals import DEFAULT_PHASE_C1, DEFAULT_PHASE_C2
 from polarization_app.physics.trajectory_phase import DEFAULT_THOMAS_FERMI_B_BOHR
 
@@ -134,6 +136,94 @@ class AppBindingsTestCase(unittest.TestCase):
         self.app.auto.set(False)
 
         self.assertFalse(self.app.trajectory_auto.get())
+
+    def test_settings_tab_is_present(self):
+        tab_texts = [self.app.notebook.tab(tab_id, "text") for tab_id in self.app.notebook.tabs()]
+
+        self.assertIn("Настройки", tab_texts)
+
+    def test_rmin_analysis_tab_is_present(self):
+        tab_texts = [self.app.notebook.tab(tab_id, "text") for tab_id in self.app.notebook.tabs()]
+
+        self.assertIn("Анализ r_min", tab_texts)
+        self.assertIsNotNone(self.app.rmin_analysis_output)
+        self.assertIsNotNone(self.app.rmin_analysis_canvas)
+
+    def test_shell_navigation_uses_icons_and_exposes_settings_tab(self):
+        self.assertIn("Настройки", self.app._nav_buttons)
+
+        for tab_text, button in self.app._nav_buttons.items():
+            with self.subTest(tab=tab_text):
+                self.assertTrue(str(button.cget("image")))
+                self.assertEqual(str(button.cget("compound")), "left")
+
+        self.app._select_notebook_tab_by_text("Анализ r_min")
+
+        self.assertEqual(self.app._nav_buttons["Анализ r_min"].cget("style"), "NavActive.TButton")
+        self.assertEqual(self.app._toolbar_primary_button.cget("text"), "Построить график")
+
+    def test_shell_toolbar_actions_use_icons(self):
+        toolbar_widgets = (
+            self.app._toolbar_primary_button,
+            self.app._toolbar_copy_button,
+            self.app._toolbar_png_button,
+            self.app._toolbar_xlsx_button,
+            self.app._toolbar_status_label,
+        )
+
+        for widget in toolbar_widgets:
+            with self.subTest(widget=widget):
+                self.assertIsNotNone(widget)
+                self.assertTrue(str(widget.cget("image")))
+                self.assertEqual(str(widget.cget("compound")), "left")
+
+        self.app.status_text.set("Ошибка тестового расчёта")
+        self.app._sync_toolbar_status()
+
+        self.assertEqual(self.app._toolbar_status_icon_name, "status_error")
+        self.assertEqual(self.app._toolbar_status_label.cget("text"), "Ошибка")
+
+    def test_rmin_analysis_updates_from_latest_trajectory_payload(self):
+        self.app._latest_trajectory_payload = SimpleNamespace(
+            frame=pd.DataFrame(
+                {
+                    "atomic_number": [29.0, 29.0, 29.0],
+                    "r_min_ang": [0.10, 0.20, 0.30],
+                    "p_flip_initial_up": [0.2, 0.8, 0.3],
+                    "p_flip_initial_down": [0.1, 0.6, 0.25],
+                    "steps": [100, 120, 110],
+                    "converged": [True, True, True],
+                    "convergence_unstable": [False, False, False],
+                }
+            )
+        )
+
+        self.app._update_rmin_analysis()
+
+        self.assertIn("Pmax", self.app.rmin_analysis_metrics_text.get())
+        self.assertIn("r_TF", self.app.rmin_analysis_output.get("1.0", tk.END))
+        self.assertEqual(
+            self.app.ax_rmin_analysis_probability.get_title(),
+            "P(изменение спина) от минимального расстояния сближения",
+        )
+
+    def test_application_icon_assets_are_loaded(self):
+        self.assertTrue(APP_ICON_ICO.exists())
+        self.assertTrue(APP_ICON_PNG.exists())
+        self.assertIsNotNone(self.app._window_icon_image)
+        self.assertEqual(int(self.app._window_icon_image.width()), 256)
+        self.assertEqual(int(self.app._window_icon_image.height()), 256)
+
+    def test_theme_switch_updates_widgets_and_figures(self):
+        self.app.theme_name.set(DARK_THEME)
+        self.app.update_idletasks()
+        theme = THEMES[DARK_THEME]
+
+        self.assertEqual(self.app.geometry_output.cget("background"), theme.surface)
+        self.assertEqual(self.app.geometry_output.cget("foreground"), theme.text)
+        self.assertEqual(self.app._style.lookup("TLabel", "foreground"), theme.text)
+        self.assertEqual(to_hex(self.app.fig.get_facecolor()), theme.background)
+        self.assertIn("Контраст", self.app.theme_status_text.get())
 
     def test_trajectory_auto_schedules_only_trajectory_recalc(self):
         self.app.trajectory_auto.set(True)

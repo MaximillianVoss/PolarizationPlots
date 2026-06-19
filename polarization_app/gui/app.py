@@ -8,6 +8,7 @@ from pathlib import Path
 from tkinter import filedialog, ttk
 
 import numpy as np
+from PIL import Image, ImageDraw, ImageTk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
@@ -23,6 +24,12 @@ from polarization_app.application.formulas import (
 )
 from polarization_app.application.geometry import GeometryContext, collect_atom_selection
 from polarization_app.application.rashba_export import export_rashba_surface_file
+from polarization_app.application.rmin_analysis import (
+    RminAnalysisMetrics,
+    compute_rmin_analysis_metrics,
+    format_rmin_analysis_report,
+    format_rmin_metrics_panel,
+)
 from polarization_app.application.spectrum_export import export_spectrum_file
 from polarization_app.application.table_export import SUPPORTED_EXPORT_SUFFIXES
 from polarization_app.application.trajectory import (
@@ -50,6 +57,7 @@ from polarization_app.gui.plotting import (
     draw_boundary_utility_plots,
     draw_geometry_preview,
     draw_rashba_surface_plots,
+    draw_rmin_analysis_plots,
     draw_spin_plots,
     draw_trajectory_probability_by_rmin,
     draw_trajectory_sweep_plots,
@@ -57,6 +65,13 @@ from polarization_app.gui.plotting import (
     zoom_axis,
     zoom_3d_axis,
     zoom_axis_around_point,
+)
+from polarization_app.gui.theme import (
+    DEFAULT_THEME_NAME,
+    THEMES,
+    apply_matplotlib_theme,
+    apply_ttk_theme,
+    contrast_ratio,
 )
 from polarization_app.physics.boundary_reflection import compute_boundary_point, compute_boundary_reflection_curves
 from polarization_app.physics.compute_backend import cpu_worker_count
@@ -94,6 +109,9 @@ EXPORT_FILETYPES = [
 ]
 TRAJECTORY_PLOT_SWEEP = "sweep"
 TRAJECTORY_PLOT_RMIN = "r_min"
+ASSET_DIR = Path(__file__).resolve().parents[1] / "assets"
+APP_ICON_ICO = ASSET_DIR / "app_icon.ico"
+APP_ICON_PNG = ASSET_DIR / "app_icon_256.png"
 
 
 def configure_logging() -> None:
@@ -150,6 +168,7 @@ class Tooltip:
     def _show(self) -> None:
         if self._window is not None or not self.text:
             return
+        theme = getattr(self.widget.winfo_toplevel(), "_theme", THEMES[DEFAULT_THEME_NAME])
         x = self.widget.winfo_rootx() + 18
         y = self.widget.winfo_rooty() + self.widget.winfo_height() + 8
         window = tk.Toplevel(self.widget)
@@ -159,7 +178,8 @@ class Tooltip:
             window,
             text=self.text,
             justify="left",
-            background="#ffffe8",
+            background=theme.tooltip_background,
+            foreground=theme.tooltip_text,
             relief="solid",
             borderwidth=1,
             padx=6,
@@ -190,12 +210,19 @@ class App(tk.Tk):
         configure_logging()
         super().__init__()
         self.title("Графики поляризации электрона")
-        self.geometry("1180x860")
-        self.minsize(980, 720)
+        self._window_icon_image: tk.PhotoImage | None = None
+        self._header_icon_image: tk.PhotoImage | None = None
+        self._ui_icon_images: dict[tuple[str, str, bool], ImageTk.PhotoImage] = {}
+        self._apply_window_icon()
+        self.geometry("1620x900")
+        self.minsize(1180, 760)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
+        self._style = ttk.Style(self)
+        self._theme = THEMES[DEFAULT_THEME_NAME]
         self._create_variables()
         self._build_layout()
+        self._apply_theme()
         self._bind_variable_handlers()
         self._update_trajectory_control_states()
 
@@ -211,6 +238,20 @@ class App(tk.Tk):
             "Если нужен пересчёт при движении ползунков, включите автопересчёт слева.\n",
         )
         self._update_trajectory_validation_hints()
+
+    def _apply_window_icon(self) -> None:
+        if APP_ICON_ICO.exists():
+            try:
+                self.iconbitmap(default=str(APP_ICON_ICO))
+            except tk.TclError:
+                logger.exception("ICON | не удалось применить ico-иконку приложения")
+        if APP_ICON_PNG.exists():
+            try:
+                self._window_icon_image = tk.PhotoImage(file=str(APP_ICON_PNG))
+                self.iconphoto(True, self._window_icon_image)
+            except tk.TclError:
+                logger.exception("ICON | не удалось применить png-иконку приложения")
+                self._window_icon_image = tk.PhotoImage(width=256, height=256)
 
     def _create_variables(self) -> None:
         self.a = tk.DoubleVar(value=4.75)
@@ -269,15 +310,28 @@ class App(tk.Tk):
         self.rashba_theta_deg = tk.DoubleVar(value=45.0)
         self.rashba_surface_potential = tk.DoubleVar(value=5.0)
         self.rashba_source_label = tk.StringVar(value=RASHBA_SOURCE_ZERO)
+        self.rmin_analysis_show_tf = tk.BooleanVar(value=True)
+        self.rmin_analysis_show_ba0 = tk.BooleanVar(value=True)
+        self.rmin_analysis_highlight_tf = tk.BooleanVar(value=True)
+        self.rmin_analysis_show_unstable = tk.BooleanVar(value=True)
+        self.rmin_analysis_metrics_text = tk.StringVar(value="Нет данных.")
+        self.rmin_analysis_fixed_text = tk.StringVar(value="Нет данных.")
+        self.rmin_analysis_range_text = tk.StringVar(value="Нет данных.")
+        self.rmin_analysis_validation_text = tk.StringVar(value="Нет данных.")
         self.status_text = tk.StringVar(value="Готово.")
         self.formula_hint_text = tk.StringVar(value="")
+        self.theme_name = tk.StringVar(value=DEFAULT_THEME_NAME)
+        self.theme_status_text = tk.StringVar(value="")
 
+        self.notebook: ttk.Notebook | None = None
         self.geometry_output: tk.Text | None = None
         self.spectrum_output: tk.Text | None = None
         self.boundary_output: tk.Text | None = None
         self.trajectory_output: tk.Text | None = None
         self.rashba_output: tk.Text | None = None
+        self.rmin_analysis_output: tk.Text | None = None
         self.output: tk.Text | None = None
+        self.rmin_analysis_table: ttk.Treeview | None = None
         self.n_auto_label: ttk.Label | None = None
         self.ax_sum = None
         self.ax_spin = None
@@ -289,6 +343,9 @@ class App(tk.Tk):
         self.ax_trajectory_phase = None
         self.ax_trajectory_angle = None
         self.ax_trajectory_diagnostics = None
+        self.ax_rmin_analysis_probability = None
+        self.ax_rmin_analysis_distribution = None
+        self.ax_rmin_analysis_diagnostics = None
         self.ax_rashba_transmission = None
         self.ax_rashba_polarization = None
         self.canvas: FigureCanvasTkAgg | None = None
@@ -299,12 +356,23 @@ class App(tk.Tk):
         self.boundary_fig: Figure | None = None
         self.trajectory_canvas: FigureCanvasTkAgg | None = None
         self.trajectory_fig: Figure | None = None
+        self.rmin_analysis_canvas: FigureCanvasTkAgg | None = None
+        self.rmin_analysis_fig: Figure | None = None
         self.rashba_canvas: FigureCanvasTkAgg | None = None
         self.rashba_fig: Figure | None = None
         self._default_view_limits = None
         self._boundary_view_limits = None
         self._trajectory_view_limits = None
+        self._rmin_analysis_view_limits = None
         self._rashba_view_limits = None
+        self._nav_buttons: dict[str, ttk.Button] = {}
+        self._nav_button_icons: dict[str, str] = {}
+        self._toolbar_primary_button: ttk.Button | None = None
+        self._toolbar_copy_button: ttk.Button | None = None
+        self._toolbar_png_button: ttk.Button | None = None
+        self._toolbar_xlsx_button: ttk.Button | None = None
+        self._toolbar_status_label: ttk.Label | None = None
+        self._toolbar_status_icon_name = "status_ok"
         self._scheduled_left_after: str | None = None
         self._scheduled_right_after: str | None = None
         self._scheduled_trajectory_after: str | None = None
@@ -329,32 +397,247 @@ class App(tk.Tk):
 
     def _build_layout(self) -> None:
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=1)
+        self.rowconfigure(0, weight=0)
+        self.rowconfigure(1, weight=0)
+        self.rowconfigure(2, weight=1)
+        self.rowconfigure(3, weight=0)
 
-        notebook = ttk.Notebook(self)
-        notebook.grid(row=0, column=0, sticky="nsew")
+        self._build_app_header(row=0)
+        self._build_app_toolbar(row=1)
+
+        notebook = ttk.Notebook(self, style="Shell.TNotebook")
+        self.notebook = notebook
+        notebook.grid(row=2, column=0, sticky="nsew")
 
         geometry_tab = ttk.Frame(notebook)
         spectrum_tab = ttk.Frame(notebook)
         boundary_tab = ttk.Frame(notebook)
         trajectory_tab = ttk.Frame(notebook)
+        rmin_analysis_tab = ttk.Frame(notebook)
         rashba_tab = ttk.Frame(notebook)
+        settings_tab = ttk.Frame(notebook)
         notebook.add(geometry_tab, text="Геометрия и переходы")
         notebook.add(spectrum_tab, text="Спектры и формулы")
         notebook.add(boundary_tab, text="Граница раздела")
         notebook.add(trajectory_tab, text="Траекторный расчёт")
         notebook.add(rashba_tab, text="Рашба-поверхность")
+        notebook.add(rmin_analysis_tab, text="Анализ r_min")
+        notebook.add(settings_tab, text="Настройки")
 
         self._build_geometry_tab(geometry_tab)
         self._build_spectrum_tab(spectrum_tab)
         self._build_boundary_tab(boundary_tab)
         self._build_trajectory_tab(trajectory_tab)
+        self._build_rmin_analysis_tab(rmin_analysis_tab)
         self._build_rashba_tab(rashba_tab)
+        self._build_settings_tab(settings_tab)
+        notebook.bind("<<NotebookTabChanged>>", lambda _event: self._sync_shell_nav())
         self.bind_all("<MouseWheel>", self._on_controls_mousewheel)
         self.bind_all("<Button-4>", self._on_controls_mousewheel)
         self.bind_all("<Button-5>", self._on_controls_mousewheel)
 
-        ttk.Label(self, textvariable=self.status_text, anchor="w", padding=(8, 4)).grid(row=1, column=0, sticky="ew")
+        ttk.Label(self, textvariable=self.status_text, anchor="w", padding=(12, 5)).grid(row=3, column=0, sticky="ew")
+        self._sync_shell_nav()
+
+    def _build_app_header(self, row: int) -> None:
+        header = ttk.Frame(self, style="Header.TFrame", padding=(18, 10, 18, 8))
+        header.grid(row=row, column=0, sticky="ew")
+        header.columnconfigure(1, weight=1)
+
+        if APP_ICON_PNG.exists():
+            try:
+                self._header_icon_image = tk.PhotoImage(file=str(APP_ICON_PNG)).subsample(8, 8)
+                ttk.Label(header, image=self._header_icon_image, style="HeaderMuted.TLabel").grid(
+                    row=0,
+                    column=0,
+                    sticky="w",
+                    padx=(0, 10),
+                )
+            except tk.TclError:
+                logger.exception("ICON | не удалось загрузить иконку для заголовка")
+
+        ttk.Label(header, text="Графики поляризации электрона", style="Title.TLabel").grid(
+            row=0,
+            column=1,
+            sticky="w",
+        )
+
+    def _build_app_toolbar(self, row: int) -> None:
+        toolbar = ttk.Frame(self, style="Toolbar.TFrame", padding=(16, 0, 16, 10))
+        toolbar.grid(row=row, column=0, sticky="ew")
+        toolbar.columnconfigure(0, weight=1)
+        toolbar.columnconfigure(1, weight=0)
+
+        nav = ttk.Frame(toolbar, style="Toolbar.TFrame")
+        nav.grid(row=0, column=0, sticky="w")
+        nav_items = (
+            ("geometry", "Геометрия", "Геометрия и переходы"),
+            ("spectra", "Спектры", "Спектры и формулы"),
+            ("boundary", "Граница", "Граница раздела"),
+            ("trajectory", "Траектория", "Траекторный расчёт"),
+            ("rashba", "Рашба", "Рашба-поверхность"),
+            ("rmin", "Анализ r_min", "Анализ r_min"),
+            ("settings", "Настройки", "Настройки"),
+        )
+        for index, (icon_name, label, tab_text) in enumerate(nav_items):
+            button = ttk.Button(
+                nav,
+                text=label,
+                image=self._ui_icon(icon_name),
+                compound="left",
+                style="Nav.TButton",
+                command=lambda target=tab_text: self._select_notebook_tab_by_text(target),
+            )
+            button.grid(row=0, column=index, sticky="w", padx=(0, 4))
+            self._nav_buttons[tab_text] = button
+            self._nav_button_icons[tab_text] = icon_name
+
+        actions = ttk.Frame(toolbar, style="Toolbar.TFrame")
+        actions.grid(row=0, column=1, sticky="e")
+        self._toolbar_primary_button = ttk.Button(
+            actions,
+            text="Построить график",
+            image=self._ui_icon("run", active=True),
+            compound="left",
+            style="Accent.TButton",
+            command=self._run_active_tab_calculation,
+        )
+        self._toolbar_primary_button.grid(row=0, column=0, padx=(0, 8))
+        self._toolbar_copy_button = ttk.Button(
+            actions,
+            text="Скопировать вывод",
+            image=self._ui_icon("copy"),
+            compound="left",
+            style="Toolbar.TButton",
+            command=self._copy_active_output,
+        )
+        self._toolbar_copy_button.grid(row=0, column=1, padx=(0, 8))
+        self._toolbar_png_button = ttk.Button(
+            actions,
+            text="Экспорт PNG",
+            image=self._ui_icon("image"),
+            compound="left",
+            style="Toolbar.TButton",
+            command=self._export_active_figure_png,
+        )
+        self._toolbar_png_button.grid(row=0, column=2, padx=(0, 8))
+        self._toolbar_xlsx_button = ttk.Button(
+            actions,
+            text="Экспорт XLSX",
+            image=self._ui_icon("xlsx"),
+            compound="left",
+            style="Toolbar.TButton",
+            command=self._export_active_data,
+        )
+        self._toolbar_xlsx_button.grid(row=0, column=3, padx=(0, 12))
+        self._toolbar_status_label = ttk.Label(
+            actions,
+            text="Расчёт готов",
+            image=self._ui_icon("status_ok"),
+            compound="left",
+            style="Status.TLabel",
+        )
+        self._toolbar_status_label.grid(row=0, column=4, sticky="e")
+
+    def _ui_icon(self, name: str, *, active: bool = False, size: int = 22) -> ImageTk.PhotoImage:
+        key = (self._theme.name, name, active)
+        icon = self._ui_icon_images.get(key)
+        if icon is not None:
+            return icon
+
+        color = self._theme.accent if active else self._theme.muted
+        accent = self._theme.accent
+        success = self._theme.success
+        warning = self._theme.warning
+        error = self._theme.error
+        image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        width = 2
+
+        if name == "geometry":
+            points = [(5, 13), (11, 5), (17, 13), (11, 18)]
+            draw.line([points[0], points[1], points[2], points[3], points[0]], fill=color, width=width)
+            draw.line([points[1], points[3]], fill=color, width=width)
+            for x, y in points:
+                draw.ellipse((x - 2.4, y - 2.4, x + 2.4, y + 2.4), fill=self._theme.surface, outline=color, width=width)
+        elif name == "spectra":
+            draw.line((4, 17, 18, 17), fill=color, width=width)
+            for x, h in ((6, 5), (11, 10), (16, 14)):
+                draw.line((x, 17, x, 17 - h), fill=color, width=width + 1)
+            draw.line((4, 15, 8, 12, 12, 7, 18, 10), fill=accent if active else color, width=width)
+        elif name == "boundary":
+            draw.rectangle((4, 5, 18, 17), outline=color, width=width)
+            draw.line((11, 5, 11, 17), fill=accent if active else color, width=width)
+            draw.arc((6, 7, 16, 19), 205, 330, fill=color, width=width)
+        elif name == "trajectory":
+            draw.arc((3, 4, 19, 18), 190, 340, fill=color, width=width)
+            draw.line((6, 16, 15, 8, 18, 7), fill=accent if active else color, width=width)
+            draw.polygon([(18, 7), (14, 6), (16, 10)], fill=accent if active else color)
+        elif name == "rashba":
+            draw.arc((3, 5, 15, 17), 270, 90, fill=color, width=width)
+            draw.arc((7, 5, 19, 17), 90, 270, fill=color, width=width)
+            draw.line((5, 11, 17, 11), fill=accent if active else color, width=width)
+            draw.polygon([(17, 11), (13, 8), (13, 14)], fill=accent if active else color)
+        elif name == "rmin":
+            draw.arc((4, 4, 18, 18), 25, 335, fill=color, width=width)
+            draw.line((6, 11, 15, 11), fill=accent if active else color, width=width)
+            draw.line((15, 11, 11, 7), fill=accent if active else color, width=width)
+            draw.line((15, 11, 11, 15), fill=accent if active else color, width=width)
+        elif name == "settings":
+            draw.ellipse((6, 6, 16, 16), outline=color, width=width)
+            draw.ellipse((9, 9, 13, 13), fill=accent if active else color)
+            for x1, y1, x2, y2 in ((11, 2, 11, 5), (11, 17, 11, 20), (2, 11, 5, 11), (17, 11, 20, 11)):
+                draw.line((x1, y1, x2, y2), fill=color, width=width)
+        elif name == "run":
+            draw.polygon([(7, 5), (7, 17), (17, 11)], fill=self._theme.on_accent if active else accent)
+        elif name == "copy":
+            draw.rectangle((7, 5, 17, 16), outline=color, width=width)
+            draw.rectangle((4, 8, 14, 19), outline=color, width=width)
+            draw.line((9, 9, 15, 9), fill=accent, width=width)
+        elif name == "image":
+            draw.rectangle((4, 5, 18, 17), outline=color, width=width)
+            draw.ellipse((13, 8, 15.5, 10.5), fill=accent)
+            draw.line((5, 16, 10, 11, 13, 14, 16, 10, 18, 13), fill=color, width=width)
+        elif name == "xlsx":
+            green = success if not active else self._theme.on_accent
+            draw.rectangle((4, 4, 18, 18), outline=green, width=width)
+            draw.line((8, 4, 8, 18), fill=green, width=width)
+            draw.line((4, 9, 18, 9), fill=green, width=width)
+            draw.line((4, 14, 18, 14), fill=green, width=width)
+            draw.line((12, 4, 12, 18), fill=green, width=1)
+        elif name == "status_ok":
+            draw.ellipse((4, 4, 18, 18), outline=success, width=width)
+            draw.line((8, 11, 10.5, 14, 15, 8), fill=success, width=width)
+        elif name == "status_busy":
+            draw.arc((4, 4, 18, 18), 25, 300, fill=warning, width=width)
+            draw.polygon([(17, 5), (18, 10), (14, 8)], fill=warning)
+        elif name == "status_error":
+            draw.ellipse((4, 4, 18, 18), outline=error, width=width)
+            draw.line((8, 8, 14, 14), fill=error, width=width)
+            draw.line((14, 8, 8, 14), fill=error, width=width)
+        else:
+            draw.ellipse((5, 5, 17, 17), outline=color, width=width)
+
+        icon = ImageTk.PhotoImage(image)
+        self._ui_icon_images[key] = icon
+        return icon
+
+    def _refresh_toolbar_icons(self) -> None:
+        active_text = self._active_tab_text()
+        for tab_text, button in self._nav_buttons.items():
+            icon_name = self._nav_button_icons.get(tab_text)
+            if icon_name:
+                button.configure(image=self._ui_icon(icon_name, active=tab_text == active_text), compound="left")
+        toolbar_icons = (
+            (self._toolbar_primary_button, "run", True),
+            (self._toolbar_copy_button, "copy", False),
+            (self._toolbar_png_button, "image", False),
+            (self._toolbar_xlsx_button, "xlsx", False),
+            (self._toolbar_status_label, self._toolbar_status_icon_name, False),
+        )
+        for widget, icon_name, active in toolbar_icons:
+            if widget is not None:
+                widget.configure(image=self._ui_icon(icon_name, active=active), compound="left")
 
     def _build_geometry_tab(self, panel) -> None:
         panel.columnconfigure(0, weight=0, minsize=CONTROL_PANEL_WIDTH)
@@ -455,6 +738,152 @@ class App(tk.Tk):
             height=12,
         )
 
+    def _build_rmin_analysis_tab(self, panel) -> None:
+        panel.columnconfigure(0, weight=0, minsize=CONTROL_PANEL_WIDTH)
+        panel.columnconfigure(1, weight=1)
+        panel.columnconfigure(2, weight=0, minsize=360)
+        panel.rowconfigure(0, weight=1)
+
+        controls = self._build_scrollable_control_panel(
+            panel,
+            tooltip_text="Вертикальная прокрутка панели параметров анализа r_min.",
+        )
+        controls.columnconfigure(0, weight=1)
+        self._build_rmin_analysis_controls(controls)
+
+        plot_panel = ttk.Frame(panel, padding=(8, 10, 8, 10), style="Content.TFrame")
+        plot_panel.grid(row=0, column=1, sticky="nsew")
+        self._build_rmin_analysis_plot_area(plot_panel)
+
+        right = ttk.Frame(panel, padding=(4, 10, 12, 10), style="Content.TFrame")
+        right.grid(row=0, column=2, sticky="nsew")
+        right.columnconfigure(0, weight=1)
+        right.rowconfigure(0, weight=2)
+        right.rowconfigure(1, weight=0)
+        right.rowconfigure(2, weight=0)
+        right.rowconfigure(3, weight=0)
+
+        output_panel = self._build_card(right, "Вывод для записки", row=0, sticky="nsew", padding=8)
+        output_panel.rowconfigure(1, weight=1)
+        self.rmin_analysis_output = self._build_text_output_panel(
+            output_panel,
+            title="",
+            height=16,
+        )
+
+        metrics = self._build_card(right, "Ключевые метрики", row=1, sticky="ew", pady=(10, 0))
+        ttk.Label(
+            metrics,
+            textvariable=self.rmin_analysis_metrics_text,
+            justify="left",
+            wraplength=320,
+            style="CardText.TLabel",
+        ).grid(row=1, column=0, sticky="w")
+
+        validation = self._build_card(right, "Проверки и валидация", row=2, sticky="ew", pady=(10, 0))
+        ttk.Label(
+            validation,
+            textvariable=self.rmin_analysis_validation_text,
+            justify="left",
+            wraplength=320,
+            style="CardText.TLabel",
+        ).grid(row=1, column=0, sticky="w")
+
+        protocol = self._build_card(right, "Протокол расчёта", row=3, sticky="ew", pady=(10, 0))
+        ttk.Button(
+            protocol,
+            text="Показать протокол расчёта",
+            style="Toolbar.TButton",
+            command=lambda: self._select_notebook_tab_by_text("Траекторный расчёт"),
+        ).grid(row=1, column=0, sticky="ew")
+        self._display_rmin_analysis_empty()
+
+    def _build_rmin_analysis_controls(self, parent) -> None:
+        source = self._build_card(parent, "1. Источник данных", row=0, sticky="ew", pady=(0, 8))
+        ttk.Label(
+            source,
+            text=(
+                "Используется последний результат вкладки «Траекторный расчёт». "
+                "Для доказательного графика обычно удобен sweep по прицельному расстоянию r_п."
+            ),
+            style="CardMuted.TLabel",
+            wraplength=CONTROL_WRAP_LENGTH,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(0, 8))
+
+        actions = ttk.Frame(source, style="Card.TFrame")
+        actions.grid(row=2, column=0, sticky="ew")
+        ttk.Button(actions, text="Последний траекторный расчёт", command=self._update_rmin_analysis).pack(side="left")
+        ttk.Button(
+            actions,
+            text="Новый sweep r_п",
+            command=lambda: self._select_notebook_tab_by_text("Траекторный расчёт"),
+        ).pack(side="left", padx=(8, 0))
+
+        fixed = self._build_card(parent, "2. Фиксированные параметры", row=1, sticky="ew", pady=(0, 8))
+        ttk.Label(
+            fixed,
+            textvariable=self.rmin_analysis_fixed_text,
+            justify="left",
+            wraplength=CONTROL_WRAP_LENGTH,
+            style="CardText.TLabel",
+        ).grid(row=1, column=0, sticky="w")
+
+        range_card = self._build_card(parent, "3. Диапазон сближения", row=2, sticky="ew", pady=(0, 8))
+        ttk.Label(
+            range_card,
+            textvariable=self.rmin_analysis_range_text,
+            justify="left",
+            wraplength=CONTROL_WRAP_LENGTH,
+            style="CardText.TLabel",
+        ).grid(row=1, column=0, sticky="w")
+
+        guides = self._build_card(parent, "4. Ориентиры на графике", row=3, sticky="ew", pady=(0, 8))
+        for row, (text, variable) in enumerate(
+            (
+                ("показать r_TF", self.rmin_analysis_show_tf),
+                ("показать b*a0", self.rmin_analysis_show_ba0),
+                ("подсветить область r_min <= r_TF", self.rmin_analysis_highlight_tf),
+                ("показать неустойчивые точки", self.rmin_analysis_show_unstable),
+            )
+        ):
+            ttk.Checkbutton(
+                guides,
+                text=text,
+                variable=variable,
+                command=self._update_rmin_analysis,
+            ).grid(row=row + 1, column=0, sticky="w", pady=2)
+
+        ttk.Label(
+            guides,
+            text="r_TF = b*a0*Z^(-1/3), b=0.885341 a0. Значение берётся из Z последнего траекторного расчёта.",
+            style="CardMuted.TLabel",
+            wraplength=CONTROL_WRAP_LENGTH,
+            justify="left",
+        ).grid(row=5, column=0, sticky="w", pady=(8, 0))
+
+        additional = self._build_card(parent, "Дополнительно", row=4, sticky="ew", pady=(0, 8))
+        ttk.Label(
+            additional,
+            text="Параметры графика синхронизируются с последним траекторным расчётом. Для изменения диапазона откройте вкладку «Траектория».",
+            style="CardMuted.TLabel",
+            wraplength=CONTROL_WRAP_LENGTH,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w")
+        ttk.Button(additional, text="Сбросить настройки", command=self._reset_rmin_analysis_options).grid(
+            row=2,
+            column=0,
+            sticky="ew",
+            pady=(10, 0),
+        )
+
+    def _build_card(self, parent, title: str, *, row: int, sticky: str = "ew", pady=(0, 0), padding: int = 10) -> ttk.Frame:
+        card = ttk.Frame(parent, padding=padding, style="Card.TFrame")
+        card.grid(row=row, column=0, sticky=sticky, pady=pady)
+        card.columnconfigure(0, weight=1)
+        ttk.Label(card, text=title, style="CardTitle.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 8))
+        return card
+
     def _build_rashba_tab(self, panel) -> None:
         panel.columnconfigure(0, weight=0, minsize=CONTROL_PANEL_WIDTH)
         panel.columnconfigure(1, weight=1)
@@ -477,6 +906,87 @@ class App(tk.Tk):
             title="Сводка прохождения через поверхность",
             height=10,
         )
+
+    def _build_settings_tab(self, panel) -> None:
+        panel.columnconfigure(0, weight=1)
+        panel.columnconfigure(1, weight=1)
+        panel.rowconfigure(0, weight=1)
+
+        left = ttk.Frame(panel, padding=(16, 14, 10, 14))
+        left.grid(row=0, column=0, sticky="nsew")
+        left.columnconfigure(0, weight=1)
+
+        right = ttk.Frame(panel, padding=(10, 14, 16, 14))
+        right.grid(row=0, column=1, sticky="nsew")
+        right.columnconfigure(0, weight=1)
+
+        appearance = ttk.LabelFrame(left, text="Внешний вид", padding=12)
+        appearance.grid(row=0, column=0, sticky="ew")
+        appearance.columnconfigure(0, weight=1)
+
+        ttk.Label(
+            appearance,
+            text="Тема применяется сразу ко всем вкладкам, текстовым сводкам и графикам.",
+            foreground="#555",
+            wraplength=CONTROL_WRAP_LENGTH,
+            justify="left",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 8))
+
+        for row, theme in enumerate(THEMES.values(), start=1):
+            ttk.Radiobutton(
+                appearance,
+                text=f"{theme.display_name} тема",
+                value=theme.name,
+                variable=self.theme_name,
+            ).grid(row=row, column=0, sticky="w", pady=2)
+
+        ttk.Label(
+            appearance,
+            textvariable=self.theme_status_text,
+            foreground="#555",
+            wraplength=CONTROL_WRAP_LENGTH,
+            justify="left",
+        ).grid(row=3, column=0, sticky="w", pady=(10, 0))
+
+        preview = ttk.LabelFrame(right, text="Проверка читабельности", padding=12)
+        preview.grid(row=0, column=0, sticky="ew")
+        preview.columnconfigure(0, weight=1)
+
+        ttk.Label(preview, text="Обычный текст интерфейса").grid(row=0, column=0, sticky="w", pady=(0, 4))
+        ttk.Label(
+            preview,
+            text="Вторичный текст подсказок и описаний параметров",
+            foreground="#555",
+            wraplength=420,
+        ).grid(row=1, column=0, sticky="w", pady=(0, 4))
+        ttk.Label(
+            preview,
+            text="Пример ошибки параметра: Emax должен быть больше Emin",
+            foreground=VALIDATION_ERROR_COLOR,
+            wraplength=420,
+        ).grid(row=2, column=0, sticky="w", pady=(0, 4))
+        ttk.Label(
+            preview,
+            text="Графики также получают фон, сетку, легенды и подписи текущей темы.",
+            wraplength=420,
+            justify="left",
+        ).grid(row=3, column=0, sticky="w", pady=(8, 0))
+
+        notes = ttk.LabelFrame(right, text="Что входит в тему", padding=12)
+        notes.grid(row=1, column=0, sticky="ew", pady=(12, 0))
+        notes.columnconfigure(0, weight=1)
+        ttk.Label(
+            notes,
+            text=(
+                "• панели параметров и вкладки\n"
+                "• поля ввода, ползунки, списки и кнопки\n"
+                "• текстовые сводки и статусная строка\n"
+                "• Matplotlib: фон, сетка, подписи, легенды\n"
+                "• цвета ошибок, предупреждений и успешных проверок"
+            ),
+            wraplength=460,
+            justify="left",
+        ).grid(row=0, column=0, sticky="w")
 
     def _build_geometry_section(self, parent, row: int) -> None:
         section = ttk.LabelFrame(parent, text="Геометрия кристалла и матрицы перехода", padding=10)
@@ -1131,6 +1641,90 @@ class App(tk.Tk):
         self.trajectory_canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew")
         self.trajectory_canvas.mpl_connect("scroll_event", self._on_trajectory_plot_scroll)
 
+    def _build_rmin_analysis_plot_area(self, panel) -> None:
+        panel.columnconfigure(0, weight=1)
+        panel.rowconfigure(1, weight=1)
+        panel.rowconfigure(2, weight=0)
+        panel.rowconfigure(3, weight=0)
+
+        zoom_bar = ttk.Frame(panel, style="Content.TFrame")
+        zoom_bar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        ttk.Label(
+            zoom_bar,
+            text="P(изменение спина) от минимального расстояния сближения",
+            style="CardTitle.TLabel",
+        ).pack(side="left")
+        ttk.Label(
+            zoom_bar,
+            text="Колесо мыши масштабирует графики.",
+            style="Muted.TLabel",
+        ).pack(side="left", padx=(14, 0))
+        ttk.Button(zoom_bar, text="Сбросить масштаб", command=self._reset_rmin_analysis_zoom).pack(side="right")
+
+        self.rmin_analysis_fig = Figure(figsize=(8.8, 6.8), dpi=100)
+        grid = self.rmin_analysis_fig.add_gridspec(2, 2, height_ratios=[2.35, 1.05], hspace=0.48, wspace=0.22)
+        self.ax_rmin_analysis_probability = self.rmin_analysis_fig.add_subplot(grid[0, :])
+        self.ax_rmin_analysis_distribution = self.rmin_analysis_fig.add_subplot(grid[1, 0])
+        self.ax_rmin_analysis_diagnostics = self.rmin_analysis_fig.add_subplot(grid[1, 1])
+        for axis in (
+            self.ax_rmin_analysis_probability,
+            self.ax_rmin_analysis_distribution,
+            self.ax_rmin_analysis_diagnostics,
+        ):
+            axis.grid(True, which="both")
+
+        self.rmin_analysis_canvas = FigureCanvasTkAgg(self.rmin_analysis_fig, master=panel)
+        self.rmin_analysis_canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew")
+        self.rmin_analysis_canvas.mpl_connect("scroll_event", self._on_rmin_analysis_plot_scroll)
+
+        table_card = ttk.Frame(panel, padding=(0, 8, 0, 0), style="Content.TFrame")
+        table_card.grid(row=2, column=0, sticky="ew")
+        table_card.columnconfigure(0, weight=1)
+        ttk.Label(table_card, text="Сводные данные по диапазону", style="CardTitle.TLabel").grid(
+            row=0,
+            column=0,
+            sticky="w",
+            pady=(0, 4),
+        )
+        columns = ("points", "r_tf", "pmax", "p_range", "inside", "outside", "convergence")
+        self.rmin_analysis_table = ttk.Treeview(
+            table_card,
+            columns=columns,
+            show="headings",
+            height=1,
+            style="Rmin.Treeview",
+        )
+        headings = {
+            "points": "N точек",
+            "r_tf": "r_TF (Å)",
+            "pmax": "Pmax",
+            "p_range": "r при P>0.5 (Å)",
+            "inside": "точек внутри r_TF",
+            "outside": "точек вне r_TF",
+            "convergence": "сходимость",
+        }
+        widths = {
+            "points": 72,
+            "r_tf": 90,
+            "pmax": 82,
+            "p_range": 140,
+            "inside": 150,
+            "outside": 140,
+            "convergence": 92,
+        }
+        for column in columns:
+            self.rmin_analysis_table.heading(column, text=headings[column])
+            self.rmin_analysis_table.column(column, width=widths[column], anchor="center", stretch=True)
+        self.rmin_analysis_table.grid(row=1, column=0, sticky="ew")
+
+        ttk.Label(
+            panel,
+            text="ⓘ Методическая формула: r_TF = b*a0*Z^(-1/3), a0 = 0.529177 Å, b = 0.885341 a0. Модель: 2.0, контроль сходимости берётся из траекторного расчёта.",
+            style="Muted.TLabel",
+            wraplength=900,
+            justify="left",
+        ).grid(row=3, column=0, sticky="ew", pady=(8, 0))
+
     def _build_rashba_plot_area(self, panel) -> None:
         panel.columnconfigure(0, weight=1)
         panel.rowconfigure(1, weight=1)
@@ -1183,10 +1777,11 @@ class App(tk.Tk):
     def _build_text_output_panel(self, panel, *, title: str, height: int = 14) -> tk.Text:
         panel.columnconfigure(0, weight=1)
         panel.rowconfigure(1, weight=1)
-        ttk.Label(panel, text=title).grid(row=0, column=0, sticky="w")
+        if title:
+            ttk.Label(panel, text=title).grid(row=0, column=0, sticky="w")
 
         text_frame = ttk.Frame(panel)
-        text_frame.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
+        text_frame.grid(row=1, column=0, sticky="nsew", pady=(6 if title else 0, 0))
         text_frame.columnconfigure(0, weight=1)
         text_frame.rowconfigure(0, weight=1)
 
@@ -1196,6 +1791,152 @@ class App(tk.Tk):
         text_scrollbar.grid(row=0, column=1, sticky="ns")
         output.configure(yscrollcommand=text_scrollbar.set)
         return output
+
+    def _active_tab_text(self) -> str:
+        if self.notebook is None:
+            return ""
+        try:
+            return str(self.notebook.tab(self.notebook.select(), "text"))
+        except tk.TclError:
+            return ""
+
+    def _sync_shell_nav(self) -> None:
+        active_text = self._active_tab_text()
+        for tab_text, button in self._nav_buttons.items():
+            is_active = tab_text == active_text
+            icon_name = self._nav_button_icons.get(tab_text)
+            button.configure(
+                style="NavActive.TButton" if is_active else "Nav.TButton",
+                image=self._ui_icon(icon_name, active=is_active) if icon_name else "",
+                compound="left",
+            )
+        if self._toolbar_primary_button is None:
+            return
+        primary_text = "Построить график"
+        if active_text == "Настройки":
+            primary_text = "Применить тему"
+        self._toolbar_primary_button.configure(text=primary_text)
+        export_state = "disabled" if active_text in {"Геометрия и переходы", "Граница раздела", "Настройки"} else "normal"
+        for button in (self._toolbar_png_button, self._toolbar_xlsx_button):
+            if button is not None:
+                button.configure(state=export_state)
+        self._sync_toolbar_status()
+
+    def _sync_toolbar_status(self) -> None:
+        if self._toolbar_status_label is None:
+            return
+        status = self.status_text.get().strip() or "Готово."
+        if "ошиб" in status.lower():
+            label = "Ошибка"
+            self._toolbar_status_icon_name = "status_error"
+        elif "..." in status or "идёт" in status.lower():
+            label = "Расчёт идёт"
+            self._toolbar_status_icon_name = "status_busy"
+        elif "готов" in status.lower() or "готово" in status.lower():
+            label = "Расчёт готов"
+            self._toolbar_status_icon_name = "status_ok"
+        else:
+            label = status[:28]
+            self._toolbar_status_icon_name = "status_ok"
+        self._toolbar_status_label.configure(text=label, image=self._ui_icon(self._toolbar_status_icon_name), compound="left")
+
+    def _run_active_tab_calculation(self) -> None:
+        active_text = self._active_tab_text()
+        if active_text == "Геометрия и переходы":
+            self.update_output_left()
+            self.update_output_right()
+        elif active_text == "Спектры и формулы":
+            self.update_output_right()
+        elif active_text == "Граница раздела":
+            self._update_boundary_utility()
+        elif active_text == "Траекторный расчёт":
+            self._update_trajectory_utility()
+        elif active_text == "Анализ r_min":
+            self._update_rmin_analysis()
+        elif active_text == "Рашба-поверхность":
+            self._update_rashba_surface()
+        elif active_text == "Настройки":
+            self._apply_theme()
+
+    def _copy_active_output(self) -> None:
+        output = self._active_output_widget()
+        if output is None:
+            self.status_text.set("На текущей вкладке нет текстового вывода для копирования.")
+            return
+        text = output.get("1.0", tk.END).strip()
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self.status_text.set("Вывод текущей вкладки скопирован в буфер обмена.")
+
+    def _active_output_widget(self) -> tk.Text | None:
+        active_text = self._active_tab_text()
+        return {
+            "Геометрия и переходы": self.geometry_output,
+            "Спектры и формулы": self.spectrum_output,
+            "Граница раздела": self.boundary_output,
+            "Траекторный расчёт": self.trajectory_output,
+            "Анализ r_min": self.rmin_analysis_output,
+            "Рашба-поверхность": self.rashba_output,
+        }.get(active_text)
+
+    def _export_active_figure_png(self) -> None:
+        figure = self._active_figure()
+        if figure is None:
+            self.status_text.set("На текущей вкладке нет графика для экспорта PNG.")
+            return
+        selected_path = filedialog.asksaveasfilename(
+            title="Экспорт графика PNG",
+            defaultextension=".png",
+            filetypes=[("PNG (*.png)", "*.png"), ("Все файлы", "*.*")],
+            initialfile=f"{self._active_tab_slug()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.png",
+        )
+        if not selected_path:
+            return
+        path = Path(selected_path)
+        if path.suffix.lower() != ".png":
+            path = path.with_suffix(".png")
+        try:
+            figure.savefig(path, dpi=180, bbox_inches="tight")
+        except Exception as ex:
+            logger.exception("EXPORT_PNG | ошибка")
+            self.status_text.set(f"Ошибка экспорта PNG: {ex}")
+            return
+        self.status_text.set(f"Экспорт PNG выполнен: {path.name}")
+
+    def _active_figure(self) -> Figure | None:
+        active_text = self._active_tab_text()
+        return {
+            "Спектры и формулы": self.fig,
+            "Граница раздела": self.boundary_fig,
+            "Траекторный расчёт": self.trajectory_fig,
+            "Анализ r_min": self.rmin_analysis_fig,
+            "Рашба-поверхность": self.rashba_fig,
+            "Геометрия и переходы": self.geometry_fig,
+        }.get(active_text)
+
+    def _export_active_data(self) -> None:
+        active_text = self._active_tab_text()
+        if active_text == "Спектры и формулы":
+            self._export_spectrum_data()
+        elif active_text in {"Траекторный расчёт", "Анализ r_min"}:
+            self._export_trajectory_data()
+        elif active_text == "Рашба-поверхность":
+            self._export_rashba_data()
+        else:
+            self.status_text.set("Для текущей вкладки экспорт XLSX не предусмотрен.")
+
+    def _active_tab_slug(self) -> str:
+        active_text = self._active_tab_text().lower()
+        replacements = {
+            "геометрия и переходы": "geometry",
+            "спектры и формулы": "spectrum",
+            "граница раздела": "boundary",
+            "траекторный расчёт": "trajectory",
+            "анализ r_min": "rmin-analysis",
+            "рашба-поверхность": "rashba",
+            "настройки": "settings",
+        }
+        return replacements.get(active_text, "plot")
 
     def _build_scrollable_control_panel(self, parent, *, tooltip_text: str = "Вертикальная прокрутка панели параметров траекторного расчёта.") -> ttk.Frame:
         container = ttk.Frame(parent, padding=(6, 6, 6, 6), width=CONTROL_PANEL_WIDTH)
@@ -1272,6 +2013,8 @@ class App(tk.Tk):
 
         self.auto_n.trace_add("write", lambda *_: self._on_geometry_inputs_changed())
         self.auto.trace_add("write", lambda *_: self._on_auto_toggle())
+        self.theme_name.trace_add("write", lambda *_: self._on_theme_changed())
+        self.status_text.trace_add("write", lambda *_: self._sync_toolbar_status())
         self.use_table_chi.trace_add("write", lambda *_: self._on_calculation_inputs_changed())
         self.i3_mode_sum.trace_add("write", lambda *_: self._on_calculation_inputs_changed())
         self.formula_variant_label.trace_add("write", lambda *_: self._on_formula_variant_changed())
@@ -1322,6 +2065,104 @@ class App(tk.Tk):
             self.rashba_source_label,
         ):
             variable.trace_add("write", lambda *_: self._update_rashba_surface_if_auto())
+
+    def _on_theme_changed(self) -> None:
+        self._apply_theme()
+        self.status_text.set(f"Тема переключена: {self._theme.display_name}.")
+
+    def _apply_theme(self) -> None:
+        theme = THEMES.get(self.theme_name.get(), THEMES[DEFAULT_THEME_NAME])
+        if self.theme_name.get() != theme.name:
+            self.theme_name.set(theme.name)
+            return
+        self._theme = theme
+        apply_ttk_theme(self._style, theme)
+        self.configure(background=theme.background)
+        self.option_add("*TCombobox*Listbox.background", theme.input_background)
+        self.option_add("*TCombobox*Listbox.foreground", theme.input_text)
+        self.option_add("*TCombobox*Listbox.selectBackground", theme.selection_background)
+        self.option_add("*TCombobox*Listbox.selectForeground", theme.selection_text)
+        self._apply_theme_to_widget_tree(self)
+        self._apply_theme_to_figures()
+        self._update_theme_status_text()
+        self._redraw_theme_canvases()
+        self._refresh_toolbar_icons()
+
+    def _apply_theme_to_widget_tree(self, widget) -> None:
+        for child in widget.winfo_children():
+            self._apply_theme_to_widget(child)
+            self._apply_theme_to_widget_tree(child)
+
+    def _apply_theme_to_widget(self, widget) -> None:
+        theme = self._theme
+        if isinstance(widget, tk.Text):
+            widget.configure(
+                background=theme.surface,
+                foreground=theme.text,
+                insertbackground=theme.text,
+                selectbackground=theme.selection_background,
+                selectforeground=theme.selection_text,
+                highlightbackground=theme.border,
+                highlightcolor=theme.accent,
+                borderwidth=1,
+            )
+            return
+        if isinstance(widget, tk.Canvas):
+            widget.configure(
+                background=theme.background,
+                highlightbackground=theme.background,
+                highlightcolor=theme.border,
+            )
+            return
+        if isinstance(widget, ttk.Label):
+            self._retint_label_if_needed(widget)
+
+    def _retint_label_if_needed(self, label: ttk.Label) -> None:
+        foreground = str(label.cget("foreground")).lower()
+        muted_colors = {"#555", "#555555"} | {theme.muted.lower() for theme in THEMES.values()}
+        error_colors = {VALIDATION_ERROR_COLOR.lower()} | {theme.error.lower() for theme in THEMES.values()}
+        success_colors = {theme.success.lower() for theme in THEMES.values()}
+        if foreground in muted_colors:
+            label.configure(foreground=self._theme.muted)
+        elif foreground in error_colors:
+            label.configure(foreground=self._theme.error)
+        elif foreground in success_colors:
+            label.configure(foreground=self._theme.success)
+
+    def _apply_theme_to_figures(self) -> None:
+        for figure in (
+            self.fig,
+            self.geometry_fig,
+            self.boundary_fig,
+            self.trajectory_fig,
+            self.rmin_analysis_fig,
+            self.rashba_fig,
+        ):
+            apply_matplotlib_theme(figure, self._theme)
+
+    def _redraw_theme_canvases(self) -> None:
+        for canvas in (
+            self.canvas,
+            self.geometry_canvas,
+            self.boundary_canvas,
+            self.trajectory_canvas,
+            self.rmin_analysis_canvas,
+            self.rashba_canvas,
+        ):
+            if canvas is not None:
+                canvas.draw_idle()
+
+    def _update_theme_status_text(self) -> None:
+        theme = self._theme
+        ui_contrast = contrast_ratio(theme.text, theme.background)
+        surface_contrast = contrast_ratio(theme.text, theme.surface)
+        muted_contrast = contrast_ratio(theme.muted, theme.background)
+        plot_contrast = contrast_ratio(theme.text, theme.plot_background)
+        self.theme_status_text.set(
+            "Контраст: "
+            f"интерфейс {ui_contrast:.1f}:1, панели {surface_contrast:.1f}:1, "
+            f"подсказки {muted_contrast:.1f}:1, графики {plot_contrast:.1f}:1."
+        )
 
     def _attach_tooltip(self, widget, text: str):
         if text:
@@ -2073,6 +2914,7 @@ class App(tk.Tk):
         self._latest_plot_payload = payload
         draw_spin_plots(self.ax_sum, self.ax_spin, energies_eV, result.spin_curves)
         self.fig.tight_layout()
+        apply_matplotlib_theme(self.fig, self._theme)
         self._default_view_limits = capture_view_limits(self.ax_sum, self.ax_spin)
         self.canvas.draw_idle()
 
@@ -2108,6 +2950,7 @@ class App(tk.Tk):
             axis.clear()
             axis.text(0.05, 0.95, f"Ошибка: {error}", transform=axis.transAxes, va="top", ha="left")
             axis.grid(True, which="both")
+        apply_matplotlib_theme(self.fig, self._theme)
         if self.canvas is not None:
             self.canvas.draw_idle()
         self.status_text.set(f"Ошибка расчёта: {error}")
@@ -2192,6 +3035,27 @@ class App(tk.Tk):
                 self.trajectory_output.insert(tk.END, f"\n[Trajectory Scroll] Ошибка: {ex}\n")
                 self.trajectory_output.see(tk.END)
 
+    def _on_rmin_analysis_plot_scroll(self, event) -> None:
+        if event.inaxes not in (
+            self.ax_rmin_analysis_probability,
+            self.ax_rmin_analysis_distribution,
+            self.ax_rmin_analysis_diagnostics,
+        ):
+            return
+        factor = 0.85 if event.button == "up" else 1.18
+        try:
+            if event.xdata is None or event.ydata is None:
+                zoom_axis(event.inaxes, factor)
+            else:
+                zoom_axis_around_point(event.inaxes, factor, event.xdata, event.ydata)
+            if self.rmin_analysis_canvas is not None:
+                self.rmin_analysis_canvas.draw_idle()
+        except Exception as ex:
+            logger.exception("RMIN_ANALYSIS_SCROLL | ошибка")
+            if self.rmin_analysis_output is not None:
+                self.rmin_analysis_output.insert(tk.END, f"\n[Rmin Scroll] Ошибка: {ex}\n")
+                self.rmin_analysis_output.see(tk.END)
+
     def _on_rashba_plot_scroll(self, event) -> None:
         if event.inaxes not in (self.ax_rashba_transmission, self.ax_rashba_polarization):
             return
@@ -2244,6 +3108,19 @@ class App(tk.Tk):
             if self.trajectory_output is not None:
                 self.trajectory_output.insert(tk.END, f"\n[Reset Trajectory Zoom] Ошибка: {ex}\n")
                 self.trajectory_output.see(tk.END)
+
+    def _reset_rmin_analysis_zoom(self) -> None:
+        if not self._rmin_analysis_view_limits:
+            return
+        try:
+            restore_view_limits(self._rmin_analysis_view_limits)
+            if self.rmin_analysis_canvas is not None:
+                self.rmin_analysis_canvas.draw_idle()
+        except Exception as ex:
+            logger.exception("RESET_RMIN_ANALYSIS_ZOOM | ошибка")
+            if self.rmin_analysis_output is not None:
+                self.rmin_analysis_output.insert(tk.END, f"\n[Reset Rmin Zoom] Ошибка: {ex}\n")
+                self.rmin_analysis_output.see(tk.END)
 
     def _reset_rashba_zoom(self) -> None:
         if not self._rashba_view_limits:
@@ -2299,6 +3176,7 @@ class App(tk.Tk):
                     axis.clear()
                     axis.text(0.05, 0.95, f"Ошибка: {ex}", transform=axis.transAxes, va="top", ha="left")
                     axis.grid(True, which="both")
+                apply_matplotlib_theme(self.boundary_fig, self._theme)
                 if self.boundary_canvas is not None:
                     self.boundary_canvas.draw_idle()
             self._set_text_output(self.boundary_output, f"[Ошибка утилиты]\n{ex}\n")
@@ -2314,6 +3192,7 @@ class App(tk.Tk):
 
         draw_boundary_utility_plots(self.ax_boundary_reflection, self.ax_boundary_angle, curves, point_result)
         self.boundary_fig.tight_layout()
+        apply_matplotlib_theme(self.boundary_fig, self._theme)
         self._boundary_view_limits = capture_view_limits(self.ax_boundary_reflection, self.ax_boundary_angle)
         self.boundary_canvas.draw_idle()
 
@@ -2340,6 +3219,7 @@ class App(tk.Tk):
                 axis.clear()
                 axis.text(0.05, 0.95, f"Ошибка: {ex}", transform=axis.transAxes, va="top", ha="left")
                 axis.grid(True, which="both")
+            apply_matplotlib_theme(self.rashba_fig, self._theme)
             if self.rashba_canvas is not None:
                 self.rashba_canvas.draw_idle()
             self._set_text_output(self.rashba_output, f"[Ошибка расчёта Рашбы]\n{ex}\n")
@@ -2349,6 +3229,7 @@ class App(tk.Tk):
         self._latest_rashba_payload = result
         draw_rashba_surface_plots(self.ax_rashba_transmission, self.ax_rashba_polarization, result.frame)
         self.rashba_fig.tight_layout()
+        apply_matplotlib_theme(self.rashba_fig, self._theme)
         self._rashba_view_limits = capture_view_limits(self.ax_rashba_transmission, self.ax_rashba_polarization)
         self.rashba_canvas.draw_idle()
         self._set_text_output(self.rashba_output, self._format_rashba_summary(result))
@@ -2459,6 +3340,7 @@ class App(tk.Tk):
                 x_label,
             )
         self.trajectory_fig.tight_layout()
+        apply_matplotlib_theme(self.trajectory_fig, self._theme)
         self._trajectory_view_limits = capture_view_limits(
             self.ax_trajectory_phase,
             self.ax_trajectory_angle,
@@ -2469,6 +3351,7 @@ class App(tk.Tk):
     def _apply_trajectory_result(self, result: TrajectorySweepResult) -> None:
         self._latest_trajectory_payload = result
         self._redraw_trajectory_plots()
+        self._update_rmin_analysis()
         self._set_text_output(self.trajectory_output, self._format_trajectory_summary(result))
         self._add_trajectory_runtime_hints(result)
         converged_count = int(result.frame["converged"].sum())
@@ -2484,8 +3367,198 @@ class App(tk.Tk):
         if self.rashba_source_label.get() == RASHBA_SOURCE_TRAJECTORY:
             self._update_rashba_surface()
 
+    def _display_rmin_analysis_empty(self) -> None:
+        if (
+            self.rmin_analysis_fig is None
+            or self.rmin_analysis_canvas is None
+            or self.ax_rmin_analysis_probability is None
+            or self.ax_rmin_analysis_distribution is None
+            or self.ax_rmin_analysis_diagnostics is None
+        ):
+            return
+        for axis in (
+            self.ax_rmin_analysis_probability,
+            self.ax_rmin_analysis_distribution,
+            self.ax_rmin_analysis_diagnostics,
+        ):
+            axis.clear()
+            axis.grid(True, which="both")
+        self.ax_rmin_analysis_probability.set_title("P(изменение спина) от минимального расстояния сближения")
+        self.ax_rmin_analysis_probability.text(
+            0.5,
+            0.5,
+            "Сначала выполните траекторный расчёт",
+            transform=self.ax_rmin_analysis_probability.transAxes,
+            ha="center",
+            va="center",
+            fontsize=11,
+        )
+        self.ax_rmin_analysis_distribution.set_title("Распределение точек относительно r_TF")
+        self.ax_rmin_analysis_diagnostics.set_title("Диагностика шагов интегрирования")
+        self.rmin_analysis_fig.subplots_adjust(left=0.08, right=0.98, top=0.92, bottom=0.08, hspace=0.56, wspace=0.26)
+        apply_matplotlib_theme(self.rmin_analysis_fig, self._theme)
+        self._rmin_analysis_view_limits = capture_view_limits(
+            self.ax_rmin_analysis_probability,
+            self.ax_rmin_analysis_distribution,
+            self.ax_rmin_analysis_diagnostics,
+        )
+        self.rmin_analysis_canvas.draw_idle()
+        self.rmin_analysis_metrics_text.set("Нет данных.\nСначала выполните траекторный расчёт.")
+        self.rmin_analysis_fixed_text.set(self._format_rmin_fixed_parameters(None))
+        self.rmin_analysis_range_text.set(self._format_rmin_range_parameters(None))
+        self.rmin_analysis_validation_text.set("вероятности в [0,1]: —\nошибок: —\nнеустойчивых точек: —\nпроверить d-θ: —")
+        self._update_rmin_analysis_table(None)
+        self._set_text_output(self.rmin_analysis_output, format_rmin_analysis_report(compute_rmin_analysis_metrics([])))
+
+    def _update_rmin_analysis(self) -> None:
+        result = self._latest_trajectory_payload
+        if (
+            result is None
+            or self.rmin_analysis_fig is None
+            or self.rmin_analysis_canvas is None
+            or self.ax_rmin_analysis_probability is None
+            or self.ax_rmin_analysis_distribution is None
+            or self.ax_rmin_analysis_diagnostics is None
+        ):
+            self._display_rmin_analysis_empty()
+            return
+
+        metrics = compute_rmin_analysis_metrics(result.frame)
+        draw_rmin_analysis_plots(
+            self.ax_rmin_analysis_probability,
+            self.ax_rmin_analysis_distribution,
+            self.ax_rmin_analysis_diagnostics,
+            result.frame,
+            show_tf=self.rmin_analysis_show_tf.get(),
+            show_ba0=self.rmin_analysis_show_ba0.get(),
+            highlight_tf=self.rmin_analysis_highlight_tf.get(),
+            show_unstable=self.rmin_analysis_show_unstable.get(),
+        )
+        self.rmin_analysis_fig.subplots_adjust(left=0.08, right=0.98, top=0.92, bottom=0.08, hspace=0.56, wspace=0.26)
+        apply_matplotlib_theme(self.rmin_analysis_fig, self._theme)
+        self._rmin_analysis_view_limits = capture_view_limits(
+            self.ax_rmin_analysis_probability,
+            self.ax_rmin_analysis_distribution,
+            self.ax_rmin_analysis_diagnostics,
+        )
+        self.rmin_analysis_canvas.draw_idle()
+        self.rmin_analysis_metrics_text.set(format_rmin_metrics_panel(metrics))
+        request = getattr(result, "request", None)
+        self.rmin_analysis_fixed_text.set(self._format_rmin_fixed_parameters(request))
+        self.rmin_analysis_range_text.set(self._format_rmin_range_parameters(request))
+        self.rmin_analysis_validation_text.set(self._format_rmin_validation(metrics, result.frame))
+        self._update_rmin_analysis_table(metrics)
+        self._set_text_output(self.rmin_analysis_output, format_rmin_analysis_report(metrics))
+
+    def _reset_rmin_analysis_options(self) -> None:
+        self.rmin_analysis_show_tf.set(True)
+        self.rmin_analysis_show_ba0.set(True)
+        self.rmin_analysis_highlight_tf.set(True)
+        self.rmin_analysis_show_unstable.set(True)
+        self._update_rmin_analysis()
+
+    def _format_rmin_fixed_parameters(self, request: TrajectorySweepRequest | None) -> str:
+        if request is None:
+            return (
+                f"Z: {self.trajectory_Z.get():.6g}\n"
+                f"E: {self.trajectory_energy.get():.6g} эВ\n"
+                f"Масса: {self.trajectory_mass_amu.get():.6g} а.е.м.\n"
+                f"L: {self.trajectory_orbital_l.get()}, M: {self.trajectory_magnetic_m.get()}"
+            )
+        return (
+            f"Z: {request.atomic_number:.6g}\n"
+            f"E: {request.energy_eV:.6g} эВ\n"
+            f"Масса: {request.mass_amu:.6g} а.е.м.\n"
+            f"L: {request.orbital_l}, M: {request.magnetic_m}"
+        )
+
+    def _format_rmin_range_parameters(self, request: TrajectorySweepRequest | None) -> str:
+        if request is None:
+            sweep_label = self.trajectory_sweep_label.get()
+            return (
+                f"Источник X: {sweep_label}\n"
+                f"r_п: {self.trajectory_impact_min.get():.6g} .. {self.trajectory_impact_max.get():.6g} Å\n"
+                f"N точек: {self.trajectory_Npts.get()}\n"
+                f"dθ: {self.trajectory_angle_step_deg.get():.6g}°"
+            )
+        sweep_label = TRAJECTORY_SWEEP_LABELS[request.sweep_mode]
+        return (
+            f"Источник X: {sweep_label}\n"
+            f"r_п: {request.impact_min_ang:.6g} .. {request.impact_max_ang:.6g} Å\n"
+            f"N точек: {request.point_count}\n"
+            f"dθ: {request.angle_step_deg:.6g}°"
+        )
+
+    def _format_rmin_validation(self, metrics: RminAnalysisMetrics, frame) -> str:
+        probability_values: list[float] = []
+        for column in ("p_flip_initial_up", "p_flip_initial_down"):
+            if column in frame:
+                values = frame[column].to_numpy(dtype=float)
+                probability_values.extend(values[np.isfinite(values)].tolist())
+        probability_ok = bool(probability_values) and min(probability_values) >= -1e-12 and max(probability_values) <= 1.0 + 1e-12
+        probability_text = "OK" if probability_ok else "внимание"
+        errors_text = "OK" if metrics.failed_count == 0 else str(metrics.failed_count)
+        unstable_text = "OK" if metrics.unstable_count == 0 else f"{metrics.unstable_count} ({100.0 * metrics.unstable_count / max(metrics.successful_count, 1):.3g}%)"
+        dtheta_text = "OK" if metrics.unstable_count == 0 else "внимание"
+        return (
+            f"вероятности в [0,1]: {probability_text}\n"
+            f"ошибок: {errors_text}\n"
+            f"неустойчивых точек: {unstable_text}\n"
+            f"проверить d-θ: {dtheta_text}"
+        )
+
+    def _update_rmin_analysis_table(self, metrics: RminAnalysisMetrics | None) -> None:
+        if self.rmin_analysis_table is None:
+            return
+        for item_id in self.rmin_analysis_table.get_children():
+            self.rmin_analysis_table.delete(item_id)
+        if metrics is None or metrics.total_count == 0:
+            values = ("—", "—", "—", "—", "—", "—", "—")
+        else:
+            outside_count = max(metrics.successful_count - metrics.inside_tf_count, 0)
+            values = (
+                str(metrics.successful_count),
+                self._format_optional_ang(metrics.r_tf_ang),
+                "—" if metrics.p_max is None else f"{metrics.p_max:.6g}",
+                self._format_optional_range(metrics.p_over_half_min_ang, metrics.p_over_half_max_ang),
+                f"{metrics.inside_tf_count} ({100.0 * metrics.inside_tf_fraction:.3g}%)",
+                f"{outside_count} ({100.0 * outside_count / max(metrics.successful_count, 1):.3g}%)",
+                "OK" if metrics.convergence_ok else "внимание",
+            )
+        self.rmin_analysis_table.insert("", "end", values=values)
+
+    @staticmethod
+    def _format_optional_ang(value: float | None) -> str:
+        return "—" if value is None else f"{value:.6g}"
+
+    @staticmethod
+    def _format_optional_range(low: float | None, high: float | None) -> str:
+        if low is None or high is None:
+            return "—"
+        if abs(low - high) <= max(abs(low), abs(high), 1.0) * 1e-12:
+            return f"{low:.6g}"
+        return f"{low:.6g} .. {high:.6g}"
+
+    def _copy_rmin_analysis_report(self) -> None:
+        if self.rmin_analysis_output is None:
+            return
+        text = self.rmin_analysis_output.get("1.0", tk.END).strip()
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self.status_text.set("Вывод анализа r_min скопирован в буфер обмена.")
+
+    def _select_notebook_tab_by_text(self, text: str) -> None:
+        if self.notebook is None:
+            return
+        for tab_id in self.notebook.tabs():
+            if self.notebook.tab(tab_id, "text") == text:
+                self.notebook.select(tab_id)
+                self._sync_shell_nav()
+                return
+
     def _display_trajectory_error(self, error: Exception) -> None:
         self._latest_trajectory_payload = None
+        self._display_rmin_analysis_empty()
         for axis in (self.ax_trajectory_phase, self.ax_trajectory_angle, self.ax_trajectory_diagnostics):
             axis.clear()
             axis.text(0.05, 0.95, f"Ошибка: {error}", transform=axis.transAxes, va="top", ha="left")
@@ -2493,6 +3566,7 @@ class App(tk.Tk):
         steps_axis = getattr(self.ax_trajectory_diagnostics, "_trajectory_steps_axis", None)
         if steps_axis is not None:
             steps_axis.clear()
+        apply_matplotlib_theme(self.trajectory_fig, self._theme)
         if self.trajectory_canvas is not None:
             self.trajectory_canvas.draw_idle()
         self._set_text_output(self.trajectory_output, f"[Ошибка траекторного расчёта]\n{error}\n")
@@ -2822,6 +3896,7 @@ class App(tk.Tk):
             preview = build_geometry_preview_data(geometry, atom_selection, search_region=search_region)
             draw_geometry_preview(self.ax_geometry_3d, self.ax_geometry_xz, self.ax_geometry_xy, preview)
             self.geometry_fig.tight_layout(pad=1.2)
+            apply_matplotlib_theme(self.geometry_fig, self._theme)
             self.geometry_canvas.draw_idle()
         except Exception:
             logger.exception("GEOMETRY_PREVIEW | ошибка обновления схемы")
@@ -2932,6 +4007,10 @@ class App(tk.Tk):
             self._scheduled_trajectory_after = None
         self._executor.shutdown(wait=False, cancel_futures=True)
         self._trajectory_executor.shutdown(wait=False, cancel_futures=True)
+        try:
+            self.update_idletasks()
+        except tk.TclError:
+            pass
         self.destroy()
 
 

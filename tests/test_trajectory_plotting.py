@@ -4,7 +4,11 @@ import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 
-from polarization_app.gui.plotting import draw_trajectory_probability_by_rmin, draw_trajectory_sweep_plots
+from polarization_app.gui.plotting import (
+    draw_rmin_analysis_plots,
+    draw_trajectory_probability_by_rmin,
+    draw_trajectory_sweep_plots,
+)
 
 
 class TrajectoryPlottingTestCase(unittest.TestCase):
@@ -147,6 +151,34 @@ class TrajectoryPlottingTestCase(unittest.TestCase):
         self.assertEqual(angle_axis.get_ylabel(), "E, эВ")
         labels = phase_axis.get_legend_handles_labels()[1]
         self.assertTrue(any(label.startswith("r_TF=b·Z^(-1/3)=") for label in labels))
+
+    def test_rmin_analysis_plots_show_probability_distribution_and_steps(self):
+        frame = pd.DataFrame(
+            {
+                "atomic_number": [29.0, 29.0, 29.0],
+                "p_flip_initial_up": [0.3, 0.1, 0.2],
+                "p_flip_initial_down": [0.25, 0.08, 0.15],
+                "r_min_ang": [0.5, 0.3, 0.4],
+                "steps": [130, 100, 120],
+                "converged": [True, True, True],
+                "convergence_unstable": [False, True, False],
+            }
+        )
+        fig = Figure()
+        probability_axis = fig.add_subplot(211)
+        distribution_axis = fig.add_subplot(223)
+        diagnostics_axis = fig.add_subplot(224)
+
+        draw_rmin_analysis_plots(probability_axis, distribution_axis, diagnostics_axis, frame)
+
+        np.testing.assert_allclose(probability_axis.lines[1].get_xdata(), [0.3, 0.4, 0.5])
+        self.assertEqual(probability_axis.get_title(), "P(изменение спина) от минимального расстояния сближения")
+        self.assertEqual(distribution_axis.get_xlabel(), "r_min / r_TF")
+        self.assertEqual(diagnostics_axis.get_ylabel(), "steps")
+        probability_labels = probability_axis.get_legend_handles_labels()[1]
+        diagnostic_labels = diagnostics_axis.get_legend_handles_labels()[1]
+        self.assertTrue(any(label.startswith("r_TF=") for label in probability_labels))
+        self.assertIn("steps, внутренние шаги интегрирования", diagnostic_labels)
 
 
 if __name__ == "__main__":
